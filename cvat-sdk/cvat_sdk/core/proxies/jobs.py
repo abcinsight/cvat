@@ -43,6 +43,13 @@ class Job(
 ):
     _model_partial_update_arg = "patched_job_write_request"
 
+    def transition(self, action: str) -> Job:
+        """Submit, request changes, approve, or reopen a job through the review workflow."""
+        if action not in {"submit", "request_changes", "approve", "reopen"}:
+            raise ValueError(f"Unknown review action: {action}")
+        self._model, _ = getattr(self.api, f"create_{action}")(id=self.id)
+        return self
+
     def import_annotations(
         self,
         format_name: str,

@@ -8,6 +8,20 @@ import asyncFetchUsers from 'components/resource-sorting-filtering/request-users
 
 export const config: Partial<Config> = {
     fields: {
+        validator: {
+            label: 'Validator',
+            type: 'select',
+            valueSources: ['value'],
+            operators: ['select_equals'],
+            fieldSettings: { useAsyncSearch: true, forceAsyncSearch: true, asyncFetch: asyncFetchUsers },
+        },
+        review_round: {
+            label: 'Review round',
+            type: 'number',
+            valueSources: ['value'],
+            operators: ['equal', 'greater', 'greater_or_equal'],
+            fieldSettings: { min: 0 },
+        },
         state: {
             label: 'State',
             type: 'select',
@@ -122,6 +136,8 @@ export const config: Partial<Config> = {
 export const localStorageRecentCapacity = 10;
 export const localStorageRecentKeyword = 'recentlyAppliedJobsFilters';
 export const predefinedFilterValues = {
+    'I am validator': '{"==":[{"var":"validator"},"<username>"]}',
+    'Waiting for my review': '{"and":[{"==":[{"var":"validator"},"<username>"]},{"==":[{"var":"stage"},"validation"]}]}',
     'Assigned to me': '{"and":[{"==":[{"var":"assignee"},"<username>"]}]}',
     'Not completed': '{"!":{"or":[{"==":[{"var":"state"},"completed"]},{"==":[{"var":"stage"},"acceptance"]}]}}',
 };

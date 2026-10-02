@@ -11,7 +11,7 @@ import {
     RectDrawingMethod, CuboidDrawingMethod, Canvas, CanvasMode as Canvas2DMode,
 } from 'cvat-canvas-wrapper';
 import {
-    getCore, MLModel, JobType, Job, QualityConflict,
+    getCore, MLModel, JobType, Job, JobStage, QualityConflict,
     ObjectState, ObjectType, ShapeType, JobState, JobValidationLayout,
 } from 'cvat-core-wrapper';
 import logger, { EventScope } from 'cvat-logger';
@@ -279,6 +279,7 @@ function wrapStatesForReviewMode(states: ObjectState[]): ObjectState[] {
     return states.map((state: ObjectState) => new Proxy(state, {
         get(target, prop) {
             if (prop === 'lock') {
+                if (receiveAnnotationsParameters().jobInstance.annotationsReadOnly) return true;
                 if (target.isGroundTruth) {
                     return true;
                 }
@@ -339,7 +340,7 @@ async function fetchAnnotations(predefinedFrame?: number): Promise<{
         }
     }
 
-    if (workspace === Workspace.REVIEW) {
+    if (workspace === Workspace.REVIEW || jobInstance.annotationsReadOnly) {
         states = wrapStatesForReviewMode(states);
     }
 
@@ -553,6 +554,7 @@ export function removeObjectAsync(objectState: ObjectState, force: boolean): Thu
     return async (dispatch: ThunkDispatch): Promise<void> => {
         try {
             const { frame, jobInstance } = receiveAnnotationsParameters();
+            if (jobInstance.annotationsReadOnly) return;
             await jobInstance.logger.log(EventScope.deleteObject, { count: 1 });
 
             const removed = await objectState.delete(frame, force);
@@ -939,24 +941,26 @@ export function resetCanvas(): AnyAction {
     };
 }
 
+async function closeAnnotationSession(state: CombinedState): Promise<void> {
+    const { instance: canvasInstance } = state.annotation.canvas;
+    const { instance: jobInstance, groundTruthInfo: { groundTruthInstance } } = state.annotation.job;
+
+    if (groundTruthInstance) {
+        await groundTruthInstance.close();
+    }
+
+    if (jobInstance) {
+        await jobInstance.close();
+    }
+
+    if (canvasInstance) {
+        canvasInstance.destroy();
+    }
+}
+
 export function closeJob(): ThunkAction {
     return async (dispatch: ThunkDispatch, getState): Promise<void> => {
-        const state = getState();
-        const { instance: canvasInstance } = state.annotation.canvas;
-        const { jobInstance, groundTruthInstance } = receiveAnnotationsParameters();
-
-        if (groundTruthInstance) {
-            await groundTruthInstance.close();
-        }
-
-        if (jobInstance) {
-            await jobInstance.close();
-        }
-
-        if (canvasInstance) {
-            canvasInstance.destroy();
-        }
-
+        await closeAnnotationSession(getState());
         dispatch({
             type: AnnotationActionTypes.CLOSE_JOB,
         });
@@ -994,6 +998,13 @@ export function getJobAsync({
                     requestedId: jobID,
                 },
             });
+
+            // The annotation route stays mounted when only its job ID changes.
+            // GET_JOB resets the UI first; release the captured previous session before loading another.
+            if (state.annotation.job.instance) {
+                await dispatch(saveLogsAsync());
+                await closeAnnotationSession(state);
+            }
 
             if (!Number.isInteger(taskID) || !Number.isInteger(jobID)) {
                 throw new Error('Requested resource id is not valid');
@@ -1093,6 +1104,7 @@ export function getJobAsync({
 export function saveAnnotationsAsync(): ThunkAction {
     return async (dispatch: ThunkDispatch): Promise<void> => {
         const { jobInstance } = receiveAnnotationsParameters();
+        if (jobInstance.annotationsReadOnly) throw new Error('This job is read-only at its current stage');
 
         dispatch({
             type: AnnotationActionTypes.SAVE_ANNOTATIONS,
@@ -1145,7 +1157,10 @@ export function finishCurrentJobAsync(onSuccess: () => void): ThunkAction {
             }
         }
 
-        if (jobInstance.state !== JobState.COMPLETED) {
+        if (jobInstance.validator && jobInstance.type === JobType.ANNOTATION &&
+            !jobInstance.parentJobId && !jobInstance.replicasCount && jobInstance.stage === JobStage.ANNOTATION) {
+            await jobInstance.transition('submit');
+        } else if (jobInstance.state !== JobState.COMPLETED) {
             await dispatch(updateJobAsync(jobInstance, { state: JobState.COMPLETED }));
         }
 
@@ -1180,6 +1195,7 @@ export function updateActiveControl(activeControl: ActiveControl): AnyAction {
 export function updateAnnotationsAsync(statesToUpdate: any[]): ThunkAction {
     return async (dispatch: ThunkDispatch): Promise<void> => {
         const { jobInstance, workspace } = receiveAnnotationsParameters();
+        if (jobInstance.annotationsReadOnly) return;
         try {
             if (statesToUpdate.some((state: any): boolean => state.updateFlags.zOrder)) {
                 // deactivate object to visualize changes immediately (UX)
@@ -1248,6 +1264,7 @@ export function createAnnotationsAsync(statesToCreate: any[]): ThunkAction {
     return async (dispatch: ThunkDispatch): Promise<void> => {
         try {
             const { jobInstance } = receiveAnnotationsParameters();
+            if (jobInstance.annotationsReadOnly) return;
             await jobInstance.annotations.put(statesToCreate);
             dispatch(fetchAnnotationsAsync());
         } catch (error) {
@@ -1671,6 +1688,7 @@ export function setNavigationType(navigationType: NavigationType): AnyAction {
 export function deleteFrameAsync(frame: number): ThunkAction {
     return async (dispatch: ThunkDispatch): Promise<void> => {
         const { jobInstance } = receiveAnnotationsParameters();
+        if (jobInstance.annotationsReadOnly) return;
         const state: CombinedState = getStore().getState();
         const {
             annotation: {
@@ -1722,6 +1740,7 @@ export function deleteFrameAsync(frame: number): ThunkAction {
 export function restoreFrameAsync(frame: number): ThunkAction {
     return async (dispatch: ThunkDispatch): Promise<void> => {
         const { jobInstance } = receiveAnnotationsParameters();
+        if (jobInstance.annotationsReadOnly) return;
 
         try {
             dispatch({ type: AnnotationActionTypes.RESTORE_FRAME });

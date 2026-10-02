@@ -26,6 +26,7 @@ from cvat.apps.iam.permissions import (
 from cvat.apps.organizations.models import Organization
 
 from .location import StorageType, get_location_configuration
+from .job_workflow import is_submit_update
 from .models import (
     AnnotationGuide,
     CloudStorage,
@@ -714,6 +715,7 @@ class TaskPermission(
             ("create", "POST"): Scopes.CREATE,
             ("retrieve", "GET"): Scopes.VIEW,
             ("status", "GET"): Scopes.VIEW,
+            ("assign_validator", "POST"): Scopes.UPDATE_ASSIGNEE,
             ("partial_update", "PATCH"): Scopes.UPDATE,
             ("update", "PUT"): Scopes.UPDATE,
             ("destroy", "DELETE"): Scopes.DELETE,
@@ -907,6 +909,11 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
         UPDATE_METADATA = "update:metadata"
         UPDATE_STAGE = "update:stage"
         UPDATE_STATE = "update:state"
+        UPDATE_VALIDATOR = "update:validator"
+        SUBMIT = "submit"
+        REQUEST_CHANGES = "request_changes"
+        APPROVE = "approve"
+        REOPEN = "reopen"
         UPDATE_VALIDATION_LAYOUT = "update:validation_layout"
         VIEW = "view"
         VIEW_ANNOTATIONS = "view:annotations"
@@ -946,10 +953,10 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
             self = cls.create_base_perm(request, view, scope, iam_context, obj, **scope_params)
             permissions.append(self)
 
-        assignee_id = request.data.get("assignee")
-        if assignee_id:
-            perm = UserPermission.create_scope_view(iam_context, assignee_id)
-            permissions.append(perm)
+        for user_field in ("assignee", "validator"):
+            if user_id := request.data.get(user_field):
+                perm = UserPermission.create_scope_view(iam_context, user_id)
+                permissions.append(perm)
 
         for field_source, field in [
             # from /annotations and /dataset endpoints
@@ -1018,6 +1025,10 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
             ("preview", "GET"): Scopes.VIEW,
             ("validation_layout", "GET"): Scopes.VIEW_VALIDATION_LAYOUT,
             ("validation_layout", "PATCH"): Scopes.UPDATE_VALIDATION_LAYOUT,
+            ("submit", "POST"): Scopes.SUBMIT,
+            ("request_changes", "POST"): Scopes.REQUEST_CHANGES,
+            ("approve", "POST"): Scopes.APPROVE,
+            ("reopen", "POST"): Scopes.REOPEN,
             ("download_dataset", "GET"): DownloadExportedExtension.Scopes.DOWNLOAD_EXPORTED_FILE,
             # deprecated API
             ("dataset_export", "GET"): Scopes.EXPORT_DATASET,
@@ -1030,8 +1041,13 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
                     request,
                     {
                         "assignee": Scopes.UPDATE_ASSIGNEE,
+                        "validator": Scopes.UPDATE_VALIDATOR,
                         "stage": Scopes.UPDATE_STAGE,
-                        "state": Scopes.UPDATE_STATE,
+                        "state": (
+                            Scopes.SUBMIT
+                            if obj is not None and is_submit_update(obj, request.data)
+                            else Scopes.UPDATE_STATE
+                        ),
                     },
                 )
             )
@@ -1085,6 +1101,8 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
             data = {
                 "id": self.obj.id,
                 "assignee": {"id": self.obj.assignee_id},
+                "validator": {"id": self.obj.validator_id},
+                "stage": self.obj.stage,
                 "organization": {"id": organization_id},
                 "task": {
                     "owner": {"id": self.obj.segment.task.owner_id},
@@ -1199,7 +1217,10 @@ class CommentPermission(OpenPolicyAgentPermission):
                     "owner": {"id": db_issue.job.segment.task.owner_id},
                     "assignee": {"id": db_issue.job.segment.task.assignee_id},
                 },
-                "job": {"assignee": {"id": db_issue.job.assignee_id}},
+                "job": {
+                    "assignee": {"id": db_issue.job.assignee_id},
+                    "validator": {"id": db_issue.job.validator_id},
+                },
                 "issue": {
                     "owner": {"id": db_issue.owner_id},
                     "assignee": {"id": db_issue.assignee_id},
@@ -1298,7 +1319,10 @@ class IssuePermission(OpenPolicyAgentPermission):
                     "owner": {"id": db_job.segment.task.owner_id},
                     "assignee": {"id": db_job.segment.task.assignee_id},
                 },
-                "job": {"assignee": {"id": db_job.assignee_id}},
+                "job": {
+                    "assignee": {"id": db_job.assignee_id},
+                    "validator": {"id": db_job.validator_id},
+                },
                 "organization": {"id": organization_id},
             }
 

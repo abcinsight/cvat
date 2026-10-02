@@ -60,6 +60,10 @@ is_job_assignee if {
     input.resource.job.assignee.id == input.auth.user.id
 }
 
+is_job_validator if {
+    input.resource.job.validator.id == input.auth.user.id
+}
+
 is_task_owner if {
     input.resource.task.owner.id == input.auth.user.id
 }
@@ -102,6 +106,10 @@ is_job_staff if {
 
 is_job_staff if {
     is_job_assignee
+}
+
+is_job_staff if {
+    is_job_validator
 }
 
 is_issue_staff if {
@@ -183,6 +191,7 @@ filter := [] if { # Django Q object to filter list of entries
         {"issue__owner": user.id}, "|",
         {"issue__assignee": user.id}, "|",
         {"issue__job__assignee": user.id}, "|",
+        {"issue__job__validator": user.id}, "|",
         {"issue__job__segment__task__owner": user.id}, "|",
         {"issue__job__segment__task__assignee": user.id}, "|",
         {"issue__job__segment__task__project__owner": user.id}, "|",
@@ -206,6 +215,7 @@ filter := [] if { # Django Q object to filter list of entries
         {"issue__owner": user.id}, "|",
         {"issue__assignee": user.id}, "|",
         {"issue__job__assignee": user.id}, "|",
+        {"issue__job__validator": user.id}, "|",
         {"issue__job__segment__task__owner": user.id}, "|",
         {"issue__job__segment__task__assignee": user.id}, "|",
         {"issue__job__segment__task__project__owner": user.id}, "|",

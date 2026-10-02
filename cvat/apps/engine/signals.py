@@ -11,12 +11,25 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
 from django.dispatch import Signal, receiver
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from cvat.apps.engine.cache import MediaCache
 from cvat.apps.events.handlers import handle_cache_item_create
 
-from .models import Asset, CloudStorage, Data, Job, JobType, Profile, Project, StatusChoice, Task
+from .models import (
+    Asset,
+    CloudStorage,
+    Data,
+    Job,
+    JobType,
+    Profile,
+    Project,
+    StageChoice,
+    StateChoice,
+    StatusChoice,
+    Task,
+)
 
 # TODO: need to log any problems reported by shutil.rmtree when the new
 # analytics feature is available. Now the log system can write information
@@ -53,6 +66,16 @@ def __enforce_job_limit(instance: Job, **kwargs):
         return
 
     task = instance.segment.task
+    if (
+        instance.type == JobType.ANNOTATION and not instance.parent_job_id
+        and not task.consensus_replicas and not instance.validator_id and task.default_validator_id
+    ):
+        instance.validator_id = task.default_validator_id
+        instance.validator_updated_date = timezone.now()
+        if instance.stage == StageChoice.ANNOTATION and instance.state == StateChoice.COMPLETED:
+            instance.stage = StageChoice.VALIDATION
+            instance.state = StateChoice.NEW
+            instance.status = StatusChoice.VALIDATION
     current_job_count = Job.objects.filter(segment__task=task).count()
 
     if current_job_count >= settings.MAX_JOBS_PER_TASK:

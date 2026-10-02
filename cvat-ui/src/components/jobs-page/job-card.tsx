@@ -107,6 +107,10 @@ function JobCardComponent(props: Readonly<Props>): JSX.Element {
                 ) : (
                     <Descriptions.Item label='Assignee'> </Descriptions.Item>
                 )}
+                {job.validator ? (
+                    <Descriptions.Item label='Validator'>{job.validator.username}</Descriptions.Item>
+                ) : null}
+                <Descriptions.Item label='Review round'>{job.reviewRound}</Descriptions.Item>
             </Descriptions>
             <div
                 onClick={handleContextMenuClick}

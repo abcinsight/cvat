@@ -72,6 +72,13 @@
         }
     }
 
+    .cvat-annotation-job-switcher {
+        width: 128px;
+        flex-shrink: 0;
+        align-self: center;
+        margin: 0 4px;
+    }
+
     .cvat-annotation-header-left-group {
         display: flex;
 
@@ -622,4 +629,8 @@
     text-overflow: ellipsis;
     direction: rtl;
     unicode-bidi: plaintext;
+}
+
+.cvat-annotation-job-switcher-error {
+    padding: 8px;
 }

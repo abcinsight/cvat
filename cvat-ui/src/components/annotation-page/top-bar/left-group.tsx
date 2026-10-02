@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 import React from 'react';
+import { useSelector } from 'react-redux';
 import { Col } from 'antd/lib/grid';
 import Icon, { StopOutlined, CheckCircleOutlined, LoadingOutlined } from '@ant-design/icons';
 import Modal from 'antd/lib/modal';
@@ -11,7 +12,8 @@ import Button from 'antd/lib/button';
 import Text from 'antd/lib/typography/Text';
 
 import { UndoIcon, RedoIcon } from 'icons';
-import { ActiveControl, ToolsBlockerState } from 'reducers';
+import { ActiveControl, CombinedState, ToolsBlockerState } from 'reducers';
+import { Job } from 'cvat-core-wrapper';
 import { registerComponentShortcuts } from 'actions/shortcuts-actions';
 import AnnotationMenuComponent from 'components/annotation-page/top-bar/annotation-menu';
 import CVATTooltip from 'components/common/cvat-tooltip';
@@ -20,8 +22,11 @@ import { subKeyMap } from 'utils/component-subkeymap';
 import GlobalHotKeys, { KeyMap } from 'utils/mousetrap-react';
 import { finishDrawAvailable } from 'utils/drawing';
 import SaveAnnotationsButton from './save-annotations-button';
+import JobSwitcher from './job-switcher';
+import WorkflowControls from './workflow-controls';
 
 interface Props {
+    jobInstance: Job;
     saving: boolean;
     undoAction?: string;
     redoAction?: string;
@@ -62,8 +67,10 @@ const componentShortcuts = {
 registerComponentShortcuts(componentShortcuts);
 
 function LeftGroup(props: Props): JSX.Element {
+    const readOnly = useSelector((state: CombinedState) => state.annotation.job.instance?.annotationsReadOnly);
     const {
         saving,
+        jobInstance,
         keyMap,
         undoAction,
         redoAction,
@@ -103,6 +110,16 @@ function LeftGroup(props: Props): JSX.Element {
         },
     };
 
+    if (readOnly) {
+        return (
+            <Col className='cvat-annotation-header-left-group'>
+                <AnnotationMenuComponent />
+                <JobSwitcher job={jobInstance} disabled={saving} />
+                <WorkflowControls />
+            </Col>
+        );
+    }
+
     return (
         <>
             <GlobalHotKeys keyMap={subKeyMap(componentShortcuts, keyMap)} handlers={handlers} />
@@ -120,6 +137,8 @@ function LeftGroup(props: Props): JSX.Element {
             )}
             <Col className='cvat-annotation-header-left-group'>
                 <AnnotationMenuComponent />
+                <JobSwitcher job={jobInstance} disabled={saving} />
+                <WorkflowControls />
                 <SaveAnnotationsButton />
                 <CVATTooltip overlay={`Undo: ${undoAction} ${undoShortcut}`}>
                     <Button

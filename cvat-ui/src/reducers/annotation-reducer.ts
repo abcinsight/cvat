@@ -168,16 +168,11 @@ export default (state = defaultState, action: AnyAction): AnnotationState => {
     switch (action.type) {
         case AnnotationActionTypes.GET_JOB: {
             return {
-                ...state,
+                ...defaultState,
                 job: {
-                    ...state.job,
-                    instance: null,
+                    ...defaultState.job,
                     requestedId: action.payload.requestedId,
                     fetching: true,
-                },
-                annotations: {
-                    ...state.annotations,
-                    initialized: false,
                 },
             };
         }
@@ -201,7 +196,11 @@ export default (state = defaultState, action: AnyAction): AnnotationState => {
             } = action.payload;
 
             const defaultLabel = job.labels.length ? job.labels[0] : null;
-            const isReview = job.stage === JobStage.VALIDATION;
+            // Stage alone does not make a user a reviewer. The backend reports
+            // workflow capabilities for the current user on job retrieval.
+            const isReview = job.stage === JobStage.VALIDATION && (
+                job.workflowPermissions.approve || job.workflowPermissions.request_changes
+            );
             let workspaceSelected = null;
             let activeObjectType;
             let activeShapeType = null;

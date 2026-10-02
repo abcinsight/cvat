@@ -140,6 +140,7 @@ from cvat.apps.engine.serializers import (
     TaskValidationLayoutReadSerializer,
     TaskValidationLayoutWriteSerializer,
     TaskWriteSerializer,
+    TaskValidatorSerializer,
     UserSerializer,
 )
 from cvat.apps.engine.tus import TusFile
@@ -840,6 +841,7 @@ class TaskViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
     queryset = Task.objects.select_related(
         'data',
         'assignee',
+        'default_validator',
         'owner',
         'target_storage',
         'source_storage',
@@ -879,6 +881,37 @@ class TaskViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
             return TaskReadSerializer
         else:
             return TaskWriteSerializer
+
+    @extend_schema(request=TaskValidatorSerializer, responses={200: TaskReadSerializer})
+    @action(detail=True, methods=['POST'])
+    @transaction.atomic
+    def assign_validator(self, request, pk=None):
+        task = self.get_object()
+        task = Task.objects.select_for_update().get(pk=task.pk)
+        self.check_object_permissions(request, task)
+        serializer = TaskValidatorSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validator = serializer.validated_data['validator']
+        if validator:
+            from cvat.apps.iam.permissions import get_iam_context
+            permission = UserPermission.create_scope_view(get_iam_context(request, task), validator.id)
+            if not permission.check_access().allow:
+                raise PermissionDenied("Cannot assign this validator")
+        if task.consensus_replicas:
+            raise ValidationError("Validator assignment is not available for consensus tasks")
+        task.default_validator = validator
+        task.save(update_fields=['default_validator', 'updated_date'])
+        jobs = Job.objects.select_for_update().filter(
+            segment__task=task, type=JobType.ANNOTATION, parent_job__isnull=True,
+        ).order_by('id')
+        if not serializer.validated_data['overwrite']:
+            jobs = jobs.filter(validator__isnull=True)
+        for job in jobs:
+            JobWriteSerializer(context=self.get_serializer_context()).update(
+                job, {'validator': validator.id if validator else None}
+            )
+        return Response(TaskReadSerializer(self.get_queryset().get(pk=task.pk),
+                                           context=self.get_serializer_context()).data)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1658,6 +1691,7 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
         Job.objects
         .select_related(
             'assignee',
+            'validator',
             'segment__task',
             'segment__task__project',
         )
@@ -1670,9 +1704,9 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
 
     iam_organization_field = 'segment__task__organization'
     iam_permission_class = JobPermission
-    search_fields = ('task_name', 'project_name', 'assignee', 'state', 'stage')
+    search_fields = ('task_name', 'project_name', 'assignee', 'validator', 'state', 'stage')
     filter_fields = list(search_fields) + [
-        'id', 'task_id', 'project_id', 'updated_date', 'dimension', 'type', 'parent_job_id',
+        'id', 'task_id', 'project_id', 'updated_date', 'dimension', 'type', 'parent_job_id', 'review_round',
     ]
     simple_filters = list(set(filter_fields) - {'id', 'updated_date'})
     ordering_fields = list(filter_fields)
@@ -1683,7 +1717,8 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
         'project_id': 'segment__task__project_id',
         'task_name': 'segment__task__name',
         'project_name': 'segment__task__project__name',
-        'assignee': 'assignee__username'
+        'assignee': 'assignee__username',
+        'validator': 'validator__username',
     }
 
     def get_queryset(self):
@@ -1703,6 +1738,65 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
             return JobReadSerializer
         else:
             return JobWriteSerializer
+
+    @transaction.atomic
+    def _transition(self, request, transition):
+        from cvat.apps.engine.job_workflow import record_transition, transition_data
+
+        # Lock only the job, not nullable joins in the read serializer queryset.
+        job = self.get_object()
+        # Job saves update task status; keep the same lock order as bulk assignment.
+        Task.objects.select_for_update().get(pk=job.segment.task_id)
+        job = Job.objects.select_for_update().get(pk=job.pk)
+        self.check_object_permissions(request, job)
+        changes = transition_data(
+            job, transition, has_open_issues=Issue.objects.filter(job=job, resolved=False).exists()
+        )
+        previous = {"stage": job.stage, "state": job.state}
+        if transition == "request_changes":
+            job.review_round += 1
+        serializer = JobWriteSerializer(job, data=changes, partial=True, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        record_transition(job, transition, request, previous)
+        return Response(JobReadSerializer(self.get_queryset().get(pk=job.pk),
+                                         context=self.get_serializer_context()).data)
+
+    @extend_schema(request=None, responses={200: JobReadSerializer})
+    @action(detail=True, methods=['POST'])
+    def submit(self, request, pk=None):
+        return self._transition(request, "submit")
+
+    @extend_schema(request=None, responses={200: JobReadSerializer})
+    @action(detail=True, methods=['POST'])
+    def request_changes(self, request, pk=None):
+        return self._transition(request, "request_changes")
+
+    @extend_schema(request=None, responses={200: JobReadSerializer})
+    @action(detail=True, methods=['POST'])
+    def approve(self, request, pk=None):
+        return self._transition(request, "approve")
+
+    @extend_schema(request=None, responses={200: JobReadSerializer})
+    @action(detail=True, methods=['POST'])
+    def reopen(self, request, pk=None):
+        return self._transition(request, "reopen")
+
+    def get_object(self):
+        job = super().get_object()
+        if self.action == 'partial_update':
+            # Reload after locking
+            # so a concurrent PATCH cannot overwrite a completed review transition.
+            Task.objects.select_for_update().get(pk=job.segment.task_id)
+            # The read queryset has GROUP BY counts, which PostgreSQL cannot lock.
+            Job.objects.select_for_update().get(pk=job.pk)
+            job = self.get_queryset().get(pk=job.pk)
+            self.check_object_permissions(self.request, job)
+        return job
+
+    @transaction.atomic
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
 
     @transaction.atomic
     def perform_create(self, serializer):

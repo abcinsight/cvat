@@ -7,7 +7,7 @@ import config from 'config';
 import { AnnotationActionTypes } from 'actions/annotation-actions';
 import { ReviewActionTypes } from 'actions/review-actions';
 import { AuthActionTypes } from 'actions/auth-actions';
-import { QualityConflict } from 'cvat-core-wrapper';
+import { JobStage, QualityConflict } from 'cvat-core-wrapper';
 import { ReviewState } from '.';
 
 const defaultState: ReviewState = {
@@ -42,6 +42,8 @@ export default function (state: ReviewState = defaultState, action: any): Review
             return {
                 ...state,
                 issues,
+                issuesResolvedHidden: action.payload.job.stage === JobStage.ANNOTATION &&
+                    action.payload.job.reviewRound > 0,
                 frameIssues,
                 conflicts,
                 frameConflicts,

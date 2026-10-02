@@ -18,7 +18,9 @@ import Icon from '@ant-design/icons';
 import { MenuProps } from 'antd/lib/menu';
 
 import { MainMenuIcon } from 'icons';
-import { Job, JobState } from 'cvat-core-wrapper';
+import {
+    Job, JobStage, JobState, JobType,
+} from 'cvat-core-wrapper';
 import { usePlugins } from 'utils/hooks';
 
 import CVATTooltip from 'components/common/cvat-tooltip';
@@ -46,6 +48,9 @@ function AnnotationMenuComponent(): JSX.Element {
     const history = useHistory();
     const jobInstance = useSelector((state: CombinedState) => state.annotation.job.instance as Job);
     const [jobState, setJobState] = useState(jobInstance.state);
+    const reviewFlow = !!jobInstance.validator && jobInstance.type === JobType.ANNOTATION &&
+        !jobInstance.parentJobId && !jobInstance.replicasCount;
+    const submit = reviewFlow && jobInstance.stage === JobStage.ANNOTATION;
     const pluginActions = usePlugins(
         (state: CombinedState) => state.plugins.components.annotationPage.menuActions.items,
         { jobInstance },
@@ -62,6 +67,11 @@ function AnnotationMenuComponent(): JSX.Element {
 
     const finishJob = useCallback(() => {
         dispatch(finishCurrentJobAsync(() => {
+            if (submit) {
+                message.success('Job submitted for review');
+                history.push(`/tasks/${jobInstance.taskId}`);
+                return;
+            }
             message.open({
                 duration: 1,
                 type: 'success',
@@ -69,7 +79,7 @@ function AnnotationMenuComponent(): JSX.Element {
                 className: 'cvat-annotation-job-finished-success',
             });
         }));
-    }, []);
+    }, [submit, history, jobInstance.taskId]);
 
     const openTask = useCallback(() => {
         history.push(`/tasks/${jobInstance.taskId}`);
@@ -218,19 +228,22 @@ function AnnotationMenuComponent(): JSX.Element {
             onClick: changeJobState(JobState.REJECTED),
         }, {
             key: `state:${JobState.COMPLETED}`,
-            label: JobState.COMPLETED,
+            label: submit ? 'Submit for review' : JobState.COMPLETED,
             className: computeClassName(JobState.COMPLETED),
-            onClick: changeJobState(JobState.COMPLETED),
+            onClick: submit ? finishJob : changeJobState(JobState.COMPLETED),
+            disabled: reviewFlow && !submit,
         }],
     }, 60]);
 
     menuItems.push([{
         key: Actions.FINISH_JOB,
-        label: 'Finish the job',
+        label: submit ? 'Submit for review' : 'Finish the job',
+        disabled: reviewFlow && !submit,
         onClick: () => {
             Modal.confirm({
                 title: 'Would you like to finish the job?',
-                content: 'It will save annotations and set the job state to "completed"',
+                content: submit ? 'Save annotations and send this job to its validator?' :
+                    'Save annotations and mark the job completed?',
                 okText: 'Continue',
                 cancelText: 'Cancel',
                 className: 'cvat-modal-content-finish-job',
@@ -246,8 +259,11 @@ function AnnotationMenuComponent(): JSX.Element {
         }),
     );
 
-    const sortedMenuItems = menuItems.toSorted((menuItem1, menuItem2) => menuItem1[1] - menuItem2[1]);
-    const finalMenuItems = sortedMenuItems.map((menuItem) => menuItem[0]);
+    const sortedMenuItems = [...menuItems].sort((menuItem1, menuItem2) => menuItem1[1] - menuItem2[1]);
+    const finalMenuItems = sortedMenuItems.map((menuItem) => menuItem[0]).filter((item) => (
+        !jobInstance.annotationsReadOnly ||
+            [Actions.EXPORT_JOB_DATASET, Actions.OPEN_TASK].includes(item?.key as Actions)
+    ));
 
     return (
         <Dropdown
