@@ -67,6 +67,16 @@ class Task(
 ):
     _model_partial_update_arg = "patched_task_write_request"
 
+    def assign_validator(self, validator_id: int | None, *, overwrite: bool = False) -> Task:
+        """Set the default validator and assign unassigned (or all) annotation jobs."""
+        self._model, _ = self.api.create_assign_validator(
+            id=self.id,
+            task_validator_request=models.TaskValidatorRequest(
+                validator=validator_id, overwrite=overwrite,
+            ),
+        )
+        return self
+
     def upload_data(
         self,
         resources: Sequence[StrPath],

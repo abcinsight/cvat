@@ -198,6 +198,10 @@ function JobActionsComponent(
             state: (
                 <JobStateSelector
                     value={isBulkMode ? null : jobInstance.state}
+                    completedLabel={
+                        !isBulkMode && jobInstance.validator && jobInstance.stage === JobStage.ANNOTATION ?
+                            'submit for review' : JobState.COMPLETED
+                    }
                     onSelect={(value) => onUpdateJobField({ state: value })}
                 />
             ),

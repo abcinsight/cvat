@@ -16,6 +16,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-unreleased'></a>
+## [Unreleased]
+
+### Added
+
+- Added a first-class annotator-to-validator review workflow for ordinary annotation jobs, with explicit
+  Submit, Request changes, Approve, and Reopen actions and per-action OPA permissions.
+- Added a dedicated job validator, task-level default and bulk validator assignment, review-round tracking,
+  workflow permissions in job responses, and auditable transition events.
+- Added validator and review-round filters and indicators to job views, plus review controls, unresolved-issue
+  feedback, and role-appropriate waiting screens in the annotation UI.
+- Added Django REST, OPA policy, and full-stack REST regression coverage for validator workflow transitions
+  and authorization.
+
+### Changed
+
+- Completing an eligible validator-assigned annotation job now submits it for review atomically as
+  `validation/new`, including completion through legacy clients and task/job status selectors.
+- New eligible jobs inherit their task's default validator. Assigning a validator to an already-completed
+  eligible job also submits it for review.
+- Review workspace selection now uses backend workflow capabilities instead of assuming every user viewing a
+  validation-stage job is a reviewer. Annotators are redirected to the task after submission.
+
+### Fixed
+
+- Fixed validator-assigned jobs remaining `annotation/completed`, which made them read-only and prevented the
+  assigned validator from reviewing them.
+- Fixed the submitting annotator retaining the Review workspace after the page reloaded even though they were
+  not assigned as the validator.
+- Added a data migration to repair existing eligible validator-assigned jobs left in the inconsistent
+  `annotation/completed` state.
+
 <a id='changelog-2.60.0'></a>
 ## \[2.60.0\] - 2026-03-17
 

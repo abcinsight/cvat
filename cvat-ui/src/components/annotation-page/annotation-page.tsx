@@ -4,13 +4,18 @@
 // SPDX-License-Identifier: MIT
 
 import React, { useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import Alert from 'antd/lib/alert';
 import Layout from 'antd/lib/layout';
 import Spin from 'antd/lib/spin';
 import notification from 'antd/lib/notification';
 import Button from 'antd/lib/button';
+import Result from 'antd/lib/result';
 
 import './styles.scss';
-import { Job } from 'cvat-core-wrapper';
+import { Job, JobStage } from 'cvat-core-wrapper';
+import CanvasLayout from 'components/annotation-page/canvas/grid-layout/canvas-layout';
+import IssueAggregatorComponent from 'components/annotation-page/review/issues-aggregator';
 import AttributeAnnotationWorkspace from 'components/annotation-page/attribute-annotation-workspace/attribute-annotation-workspace';
 import SingleShapeWorkspace from 'components/annotation-page/single-shape-workspace/single-shape-workspace';
 import ReviewAnnotationsWorkspace from 'components/annotation-page/review-workspace/review-workspace';
@@ -21,7 +26,7 @@ import FiltersModalComponent from 'components/annotation-page/top-bar/filters-mo
 import { JobNotFoundComponent } from 'components/common/not-found';
 import StatisticsModalComponent from 'components/annotation-page/top-bar/statistics-modal';
 import AnnotationTopBarContainer from 'containers/annotation-page/top-bar/top-bar';
-import { Workspace } from 'reducers';
+import { CombinedState, Workspace } from 'reducers';
 import { usePrevious } from 'utils/hooks';
 import EventRecorder from 'utils/event-recorder';
 import { readLatestFrame } from 'utils/remember-latest-frame';
@@ -41,6 +46,9 @@ interface Props {
 }
 
 export default function AnnotationPageComponent(props: Props): JSX.Element {
+    const unresolved = useSelector((state: CombinedState) => (
+        state.review.issues.filter((issue) => !issue.resolved).length
+    ));
     const {
         job, fetching, annotationsInitialized, workspace, frameNumber,
         getJob, closeJob, saveLogs, changeFrame,
@@ -135,12 +143,58 @@ export default function AnnotationPageComponent(props: Props): JSX.Element {
         }
     }, [job, workspace]);
 
+    if (typeof job === 'undefined') {
+        return <JobNotFoundComponent />;
+    }
+
     if (job === null || !annotationsInitialized) {
         return <Spin size='large' className='cvat-spinner' />;
     }
 
-    if (typeof job === 'undefined') {
-        return <JobNotFoundComponent />;
+    const canReview = job.stage === JobStage.VALIDATION && (
+        job.workflowPermissions.approve || job.workflowPermissions.request_changes
+    );
+    const waitingForReview = job.stage === JobStage.VALIDATION && !canReview;
+    const waitingForSubmission = job.stage === JobStage.ANNOTATION &&
+        !!job.validator && job.annotationsReadOnly;
+    let workspaceContent: JSX.Element;
+    if (waitingForReview) {
+        workspaceContent = (
+            <Result
+                status='info'
+                title='Submitted for review'
+                subTitle={
+                    `This job is assigned to ${job.validator?.username || 'its validator'}. ` +
+                    'You can continue editing if changes are requested.'
+                }
+            />
+        );
+    } else if (waitingForSubmission) {
+        workspaceContent = (
+            <Result
+                status='info'
+                title='Waiting for the annotator'
+                subTitle='The review workspace will become available after the job is submitted.'
+            />
+        );
+    } else if (job.annotationsReadOnly) {
+        workspaceContent = (
+            <Layout>
+                <CanvasLayout />
+                <IssueAggregatorComponent />
+            </Layout>
+        );
+    } else {
+        workspaceContent = (
+            <>
+                {workspace === Workspace.STANDARD3D && <StandardWorkspace3DComponent />}
+                {workspace === Workspace.STANDARD && <StandardWorkspaceComponent />}
+                {workspace === Workspace.SINGLE_SHAPE && <SingleShapeWorkspace />}
+                {workspace === Workspace.ATTRIBUTES && <AttributeAnnotationWorkspace />}
+                {workspace === Workspace.TAGS && <TagAnnotationWorkspace />}
+                {workspace === Workspace.REVIEW && <ReviewAnnotationsWorkspace />}
+            </>
+        );
     }
 
     return (
@@ -148,13 +202,14 @@ export default function AnnotationPageComponent(props: Props): JSX.Element {
             <Layout.Header className='cvat-annotation-header'>
                 <AnnotationTopBarContainer />
             </Layout.Header>
+            {job.annotationsReadOnly && !waitingForReview && !waitingForSubmission && (
+                <Alert type='info' message='This job is read-only at its current stage.' />
+            )}
+            {job.stage === JobStage.ANNOTATION && job.reviewRound > 0 && (
+                <Alert type='warning' message={`${unresolved} unresolved issues (round ${job.reviewRound})`} />
+            )}
             <Layout.Content className='cvat-annotation-layout-content'>
-                {workspace === Workspace.STANDARD3D && <StandardWorkspace3DComponent />}
-                {workspace === Workspace.STANDARD && <StandardWorkspaceComponent />}
-                {workspace === Workspace.SINGLE_SHAPE && <SingleShapeWorkspace />}
-                {workspace === Workspace.ATTRIBUTES && <AttributeAnnotationWorkspace />}
-                {workspace === Workspace.TAGS && <TagAnnotationWorkspace />}
-                {workspace === Workspace.REVIEW && <ReviewAnnotationsWorkspace />}
+                {workspaceContent}
             </Layout.Content>
             <FiltersModalComponent />
             <StatisticsModalComponent />

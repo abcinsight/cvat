@@ -514,6 +514,9 @@ export class Job extends Session {
     #data: {
         id?: number;
         assignee: User | null;
+        validator: User | null;
+        review_round: number;
+        workflow_permissions: Record<string, boolean>;
         stage?: JobStage;
         state?: JobState;
         type?: JobType;
@@ -545,6 +548,9 @@ export class Job extends Session {
         this.#data = {
             id: undefined,
             assignee: null,
+            validator: null,
+            review_round: 0,
+            workflow_permissions: {},
             stage: undefined,
             state: undefined,
             type: undefined,
@@ -612,6 +618,10 @@ export class Job extends Session {
             }
         }
 
+        if (data.validator?.id !== this.#data.validator?.id) {
+            this.#data.validator = data.validator ? new User(data.validator) : null;
+        }
+
         if (
             !this.#data.source_storage ||
             this.#data.source_storage.location !== data.source_storage?.location ||
@@ -635,6 +645,8 @@ export class Job extends Session {
         }
 
         this.#data.stage = data.stage ?? this.#data.stage;
+        this.#data.review_round = data.review_round ?? this.#data.review_round;
+        this.#data.workflow_permissions = data.workflow_permissions ?? this.#data.workflow_permissions;
         this.#data.state = data.state ?? this.#data.state;
         this.#data.project_id = data.project_id ?? this.#data.project_id;
         this.#data.guide_id = data.guide_id ?? this.#data.guide_id;
@@ -647,6 +659,26 @@ export class Job extends Session {
 
     public get assignee(): User | null {
         return this.#data.assignee;
+    }
+
+    public get validator(): User | null {
+        return this.#data.validator;
+    }
+
+    public get reviewRound(): number {
+        return this.#data.review_round;
+    }
+
+    public get workflowPermissions(): Record<string, boolean> {
+        return { ...this.#data.workflow_permissions };
+    }
+
+    public get annotationsReadOnly(): boolean {
+        return this.#data.workflow_permissions['update:annotations'] === false;
+    }
+
+    async transition(action: 'submit' | 'request_changes' | 'approve' | 'reopen'): Promise<Job> {
+        return PluginRegistry.apiWrapper.call(this, Job.prototype.transition, action);
     }
 
     public get stage(): JobStage {
@@ -787,6 +819,10 @@ export class Job extends Session {
 }
 
 export class Task extends Session {
+    async assignValidator(validator: User | null, overwrite = false): Promise<void> {
+        return PluginRegistry.apiWrapper.call(this, Task.prototype.assignValidator, validator, overwrite);
+    }
+
     public name: string;
     public projectId: number | null;
     public projectName: string | null;
@@ -819,6 +855,7 @@ export class Task extends Session {
     };
     public readonly jobs: Job[];
     public readonly consensusEnabled: boolean;
+    public readonly defaultValidator: User | null;
 
     public readonly startFrame: number;
     public readonly stopFrame: number;
@@ -845,6 +882,7 @@ export class Task extends Session {
         jobs?: SerializedJob[];
     }>) {
         super();
+        this.defaultValidator = initialData.default_validator ? new User(initialData.default_validator) : null;
 
         const data = {
             id: undefined,
@@ -940,6 +978,8 @@ export class Task extends Session {
                     url: job.url,
                     id: job.id,
                     assignee: job.assignee,
+                    validator: job.validator,
+                    review_round: job.review_round,
                     state: job.state,
                     stage: job.stage,
                     type: job.type,

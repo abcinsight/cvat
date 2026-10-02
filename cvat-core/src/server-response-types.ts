@@ -102,6 +102,7 @@ export type JobsFilter = ProjectsFilter & {
 };
 
 export interface SerializedTask {
+    default_validator?: SerializedUser | null;
     assignee: SerializedUser | null;
     bug_tracker: string;
     created_date: string;
@@ -141,6 +142,9 @@ export interface SerializedTask {
 
 export interface SerializedJob {
     assignee: SerializedUser | null;
+    validator: SerializedUser | null;
+    review_round: number;
+    workflow_permissions?: Record<string, boolean>;
     bug_tracker: string;
     data_chunk_size: number | null;
     data_compressed_chunk_type: ChunkType

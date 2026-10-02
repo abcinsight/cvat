@@ -209,6 +209,7 @@ export default function AnnotationTopBarComponent(props: Props): JSX.Element {
     return (
         <Row justify='space-between'>
             <LeftGroup
+                jobInstance={jobInstance}
                 saving={saving}
                 undoAction={undoAction}
                 redoAction={redoAction}

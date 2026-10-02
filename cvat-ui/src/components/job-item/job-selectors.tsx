@@ -10,9 +10,12 @@ import { handleDropdownKeyDown } from 'utils/dropdown-utils';
 interface JobStateSelectorProps {
     value: JobState | null;
     onSelect: (newValue: JobState) => void;
+    completedLabel?: string;
 }
 
-export function JobStateSelector({ value, onSelect }: Readonly<JobStateSelectorProps>): JSX.Element {
+export function JobStateSelector({
+    value, onSelect, completedLabel = JobState.COMPLETED,
+}: Readonly<JobStateSelectorProps>): JSX.Element {
     return (
         <Select
             className='cvat-job-item-state'
@@ -25,7 +28,7 @@ export function JobStateSelector({ value, onSelect }: Readonly<JobStateSelectorP
             <Select.Option value={JobState.NEW}>{JobState.NEW}</Select.Option>
             <Select.Option value={JobState.IN_PROGRESS}>{JobState.IN_PROGRESS}</Select.Option>
             <Select.Option value={JobState.REJECTED}>{JobState.REJECTED}</Select.Option>
-            <Select.Option value={JobState.COMPLETED}>{JobState.COMPLETED}</Select.Option>
+            <Select.Option value={JobState.COMPLETED}>{completedLabel}</Select.Option>
         </Select>
     );
 }

@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 
 import { Row, Col } from 'antd/lib/grid';
+import { useSelector } from 'react-redux';
 import Icon, {
     LinkOutlined, DeleteOutlined, CopyOutlined, SearchOutlined,
 } from '@ant-design/icons';
@@ -108,6 +109,7 @@ function PlayerNavigation(props: Props): JSX.Element {
     } = props;
 
     const [frameInputValue, setFrameInputValue] = useState<number>(frameNumber);
+    const readOnly = useSelector((state: CombinedState) => state.annotation.job.instance?.annotationsReadOnly);
 
     const playerSliderPlugins = usePlugins(
         (state: CombinedState) => state.plugins.components.annotationPage.player.slider,
@@ -143,7 +145,7 @@ function PlayerNavigation(props: Props): JSX.Element {
     const handlers: Record<keyof typeof componentShortcuts, (event?: KeyboardEvent) => void> = {
         DELETE_FRAME: (event: KeyboardEvent | undefined) => {
             event?.preventDefault();
-            onDeleteFrame();
+            if (!readOnly) onDeleteFrame();
         },
         FOCUS_INPUT_FRAME: (event: KeyboardEvent | undefined) => {
             event?.preventDefault();
@@ -250,7 +252,7 @@ function PlayerNavigation(props: Props): JSX.Element {
                         <CVATTooltip title='Create frame URL'>
                             <LinkOutlined className='cvat-player-frame-url-icon' onClick={onURLIconClick} />
                         </CVATTooltip>
-                        { deleteFrameIcon }
+                        { !readOnly && deleteFrameIcon }
                     </Col>
                 </Row>
             </Col>

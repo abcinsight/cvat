@@ -21,6 +21,7 @@ import data.organizations
 #              "update:metadata"|
 #              "update:stage"|
 #              "update:state"|
+#              "update:validator"|
 #              "update:validation_layout"|
 #              "view"|
 #              "view:annotations"|
@@ -46,6 +47,8 @@ import data.organizations
 #     "resource": {
 #         "id": <num>,
 #         "assignee": { "id": <num> },
+#         "validator": { "id": <num> },
+#         "stage": <"annotation"|"validation"|"acceptance">,
 #         "organization": { "id": <num> } or null,
 #         "project": {
 #             "owner": { "id": <num> },
@@ -62,6 +65,22 @@ import data.organizations
 
 is_job_assignee if {
     input.resource.assignee.id == input.auth.user.id
+}
+
+is_job_validator if {
+    input.resource.validator.id == input.auth.user.id
+}
+
+# The annotator can modify the job only while it is being annotated
+is_job_active_assignee if {
+    is_job_assignee
+    input.resource.stage == "annotation"
+}
+
+# The validator can modify the job only while it is being validated
+is_job_active_validator if {
+    is_job_validator
+    input.resource.stage == "validation"
 }
 
 is_task_owner if {
@@ -108,6 +127,65 @@ is_job_staff if {
     is_job_assignee
 }
 
+is_job_staff if {
+    is_job_validator
+}
+
+# Who can modify the job content and its state
+is_job_editor if {
+    is_task_staff
+}
+
+is_job_editor if {
+    is_job_active_assignee
+}
+
+is_job_editor if {
+    is_job_active_validator
+}
+
+# Preserve the manual workflow for jobs without a dedicated validator.
+is_job_editor if {
+    is_job_assignee
+    object.get(object.get(input.resource, "validator", {}), "id", null) == null
+}
+
+workflow_actor if {
+    is_task_staff
+}
+
+workflow_actor if {
+    input.scope == utils.SUBMIT
+    is_job_active_assignee
+}
+
+workflow_actor if {
+    input.scope in {utils.APPROVE, utils.REQUEST_CHANGES}
+    is_job_active_validator
+}
+
+allow if {
+    input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+    utils.is_sandbox
+    utils.has_perm(utils.WORKER)
+    workflow_actor
+}
+
+allow if {
+    input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+    input.auth.organization.id == input.resource.organization.id
+    organizations.has_perm(organizations.WORKER)
+    utils.has_perm(utils.WORKER)
+    workflow_actor
+}
+
+allow if {
+    input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+    input.auth.organization.id == input.resource.organization.id
+    organizations.has_perm(organizations.MAINTAINER)
+    utils.has_perm(utils.USER)
+}
+
 default allow := false
 
 allow if {
@@ -139,6 +217,7 @@ filter := [] if { # Django Q object to filter list of entries
     user := input.auth.user
     qobject := [
         {"assignee_id": user.id},
+        {"validator_id": user.id}, "|",
         {"segment__task__owner_id": user.id}, "|",
         {"segment__task__assignee_id": user.id}, "|",
         {"segment__task__project__owner_id": user.id}, "|",
@@ -155,6 +234,7 @@ filter := [] if { # Django Q object to filter list of entries
     user := input.auth.user
     qobject := [
         {"assignee_id": user.id},
+        {"validator_id": user.id}, "|",
         {"segment__task__owner_id": user.id}, "|",
         {"segment__task__assignee_id": user.id}, "|",
         {"segment__task__project__owner_id": user.id}, "|",
@@ -217,7 +297,7 @@ allow if {
     }
     utils.is_sandbox
     utils.has_perm(utils.WORKER)
-    is_job_staff
+    is_job_editor
 }
 
 allow if {
@@ -238,37 +318,44 @@ allow if {
     input.auth.organization.id == input.resource.organization.id
     utils.has_perm(utils.WORKER)
     organizations.has_perm(organizations.WORKER)
+    is_job_editor
+}
+
+allow if {
+    input.scope in {utils.VIEW, utils.VIEW_ANNOTATIONS, utils.VIEW_DATA, utils.VIEW_METADATA}
+    input.auth.organization.id == input.resource.organization.id
+    input.auth.user.privilege == utils.WORKER
+    input.auth.organization.user.role == null
     is_job_staff
 }
 
 allow if {
     input.scope in {
-        utils.VIEW, utils.VIEW_ANNOTATIONS, utils.VIEW_DATA, utils.VIEW_METADATA,
         utils.UPDATE_STATE, utils.UPDATE_ANNOTATIONS, utils.DELETE_ANNOTATIONS,
         utils.IMPORT_ANNOTATIONS, utils.UPDATE_METADATA
     }
     input.auth.organization.id == input.resource.organization.id
     input.auth.user.privilege == utils.WORKER
     input.auth.organization.user.role == null
-    is_job_assignee
+    is_job_editor
 }
 
 allow if {
-    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE}
+    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE, utils.UPDATE_VALIDATOR}
     utils.is_sandbox
     utils.has_perm(utils.WORKER)
     is_task_staff
 }
 
 allow if {
-    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE}
+    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE, utils.UPDATE_VALIDATOR}
     input.auth.organization.id == input.resource.organization.id
     utils.has_perm(utils.USER)
     organizations.has_perm(organizations.MAINTAINER)
 }
 
 allow if {
-    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE}
+    input.scope in {utils.UPDATE_STAGE, utils.UPDATE_ASSIGNEE, utils.UPDATE_VALIDATOR}
     input.auth.organization.id == input.resource.organization.id
     utils.has_perm(utils.WORKER)
     organizations.has_perm(organizations.WORKER)

@@ -66,6 +66,16 @@ async function restoreFrameWrapper(jobID, frame): Promise<void> {
 }
 
 export function implementJob(Job: typeof JobClass): typeof JobClass {
+    Object.defineProperty(Job.prototype.transition, 'implementation', {
+        value: async function transitionImplementation(
+            this: JobClass, action: Parameters<JobClass['transition']>[0],
+        ): Promise<JobClass> {
+            checkInEnum('workflow action', action, ['submit', 'request_changes', 'approve', 'reopen']);
+            const data = await serverProxy.jobs.transition(this.id, action);
+            this.reinit({ ...data, labels: [] });
+            return this;
+        },
+    });
     Object.defineProperty(Job.prototype.save, 'implementation', {
         value: async function saveImplementation(
             this: JobClass,
@@ -74,6 +84,7 @@ export function implementJob(Job: typeof JobClass): typeof JobClass {
             if (this.id) {
                 const jobData = {
                     ...('assignee' in fields ? { assignee: fields.assignee } : {}),
+                    ...('validator' in fields ? { validator: fields.validator } : {}),
                     ...('stage' in fields ? { stage: fields.stage } : {}),
                     ...('state' in fields ? { state: fields.state } : {}),
                 };
@@ -81,6 +92,11 @@ export function implementJob(Job: typeof JobClass): typeof JobClass {
                 if (jobData.assignee) {
                     checkObjectType('job assignee', jobData.assignee, null, { cls: User, name: 'User' });
                     jobData.assignee = jobData.assignee.id;
+                }
+
+                if (jobData.validator) {
+                    checkObjectType('job validator', jobData.validator, null, { cls: User, name: 'User' });
+                    jobData.validator = jobData.validator.id;
                 }
 
                 if (jobData.state) {
@@ -638,6 +654,13 @@ export function implementJob(Job: typeof JobClass): typeof JobClass {
 }
 
 export function implementTask(Task: typeof TaskClass): typeof TaskClass {
+    Object.defineProperty(Task.prototype.assignValidator, 'implementation', {
+        value: async function assignValidatorImplementation(
+            this: TaskClass, validator: User | null, overwrite: boolean,
+        ): Promise<void> {
+            await serverProxy.tasks.assignValidator(this.id, validator?.id ?? null, overwrite);
+        },
+    });
     Object.defineProperty(Task.prototype.close, 'implementation', {
         value: function closeImplementation(
             this: TaskClass,

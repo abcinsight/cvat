@@ -775,7 +775,8 @@ class Project(TimestampedModel, AssignableModel, FileSystemRelatedModel):
             return True
 
         return self.tasks.prefetch_related('segment_set', 'segment_set__job_set').filter(
-            Q(owner=user_id) | Q(assignee=user_id) | Q(segment__job__assignee=user_id)
+            Q(owner=user_id) | Q(assignee=user_id)
+            | Q(segment__job__assignee=user_id) | Q(segment__job__validator=user_id)
         ).count() > 0
 
     @cache_deleted
@@ -824,6 +825,9 @@ class TaskQuerySet(models.QuerySet):
 
 class Task(TimestampedModel, AssignableModel, FileSystemRelatedModel):
     objects = TaskQuerySet.as_manager()
+    default_validator = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="validation_tasks"
+    )
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE,
         null=True, blank=True, related_name="tasks",
@@ -881,7 +885,9 @@ class Task(TimestampedModel, AssignableModel, FileSystemRelatedModel):
             return True
         if self.assignee == user_id:
             return True
-        return self.segment_set.prefetch_related('job_set').filter(job__assignee=user_id).count() > 0
+        return self.segment_set.prefetch_related('job_set').filter(
+            Q(job__assignee=user_id) | Q(job__validator=user_id)
+        ).count() > 0
 
     def require_data(self) -> Data:
         assert self.data is not None
@@ -1162,6 +1168,14 @@ class Job(TimestampedModel, AssignableModel, FileSystemRelatedModel):
         'self', on_delete=models.CASCADE, null=True, blank=True,
         related_name='child_jobs', related_query_name="child_job"
     )
+    # The user who reviews the job when it is in the validation stage.
+    # Can be assigned in advance, while the job is still being annotated.
+    validator = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="validated_jobs", related_query_name="validated_job"
+    )
+    validator_updated_date = models.DateTimeField(null=True, blank=True, default=None)
+    review_round = models.PositiveIntegerField(default=0)
 
     labeledimage_set: models.manager.RelatedManager[LabeledImage]
     labeledshape_set: models.manager.RelatedManager[LabeledShape]

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: CVAT REST API
-  version: 2.60.1
+  version: 2.60.0
   description: REST API for Computer Vision Annotation Tool (CVAT)
   termsOfService: https://www.google.com/policies/terms/
   contact:
@@ -2160,7 +2160,7 @@ paths:
 
           Details about the syntax used can be found at the link: https://jsonlogic.com/
 
-           Available filter_fields: ['task_name', 'project_name', 'assignee', 'state', 'stage', 'id', 'task_id', 'project_id', 'updated_date', 'dimension', 'type', 'parent_job_id'].
+           Available filter_fields: ['task_name', 'project_name', 'assignee', 'validator', 'state', 'stage', 'id', 'task_id', 'project_id', 'updated_date', 'dimension', 'type', 'parent_job_id', 'review_round'].
         schema:
           type: string
       - name: org
@@ -2200,20 +2200,25 @@ paths:
         description: A simple equality filter for the project_name field
         schema:
           type: string
+      - name: review_round
+        in: query
+        description: A simple equality filter for the review_round field
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
         description: 'A search term. Available search_fields: (''task_name'', ''project_name'',
-          ''assignee'', ''state'', ''stage'')'
+          ''assignee'', ''validator'', ''state'', ''stage'')'
         schema:
           type: string
       - name: sort
         required: false
         in: query
         description: 'Which field to use when ordering the results. Available ordering_fields:
-          [''task_name'', ''project_name'', ''assignee'', ''state'', ''stage'', ''id'',
-          ''task_id'', ''project_id'', ''updated_date'', ''dimension'', ''type'',
-          ''parent_job_id'']'
+          [''task_name'', ''project_name'', ''assignee'', ''validator'', ''state'',
+          ''stage'', ''id'', ''task_id'', ''project_id'', ''updated_date'', ''dimension'',
+          ''type'', ''parent_job_id'', ''review_round'']'
         schema:
           type: string
       - name: stage
@@ -2254,6 +2259,11 @@ paths:
           - annotation
           - ground_truth
           - consensus_replica
+      - name: validator
+        in: query
+        description: A simple equality filter for the validator field
+        schema:
+          type: string
       tags:
       - jobs
       security:
@@ -2665,6 +2675,32 @@ paths:
       responses:
         '204':
           description: The annotation has been deleted
+  /api/jobs/{id}/approve:
+    post:
+      operationId: jobs_create_approve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - jobs
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/JobRead'
+          description: ''
   /api/jobs/{id}/data:
     get:
       operationId: jobs_retrieve_data
@@ -2876,6 +2912,84 @@ paths:
       responses:
         '200':
           description: Job image preview
+  /api/jobs/{id}/reopen:
+    post:
+      operationId: jobs_create_reopen
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - jobs
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/JobRead'
+          description: ''
+  /api/jobs/{id}/request_changes:
+    post:
+      operationId: jobs_create_request_changes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - jobs
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/JobRead'
+          description: ''
+  /api/jobs/{id}/submit:
+    post:
+      operationId: jobs_create_submit
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - jobs
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/JobRead'
+          description: ''
   /api/jobs/{id}/validation_layout:
     get:
       operationId: jobs_retrieve_validation_layout
@@ -5659,6 +5773,38 @@ paths:
       responses:
         '204':
           description: The annotation has been deleted
+  /api/tasks/{id}/assign_validator:
+    post:
+      operationId: tasks_create_assign_validator
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this task.
+        required: true
+      tags:
+      - tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskValidatorRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/TaskRead'
+          description: ''
   /api/tasks/{id}/backup/export:
     post:
       operationId: tasks_create_backup_export
@@ -8261,6 +8407,11 @@ components:
           - $ref: '#/components/schemas/BasicUser'
           readOnly: true
           nullable: true
+        validator:
+          allOf:
+          - $ref: '#/components/schemas/BasicUser'
+          readOnly: true
+          nullable: true
         guide_id:
           type: integer
           readOnly: true
@@ -8353,6 +8504,19 @@ components:
           type: integer
           nullable: true
           readOnly: true
+        validator_updated_date:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        review_round:
+          type: integer
+          readOnly: true
+        workflow_permissions:
+          type: object
+          additionalProperties:
+            type: boolean
+          readOnly: true
         consensus_replicas:
           type: integer
           readOnly: true
@@ -8417,6 +8581,9 @@ components:
       type: object
       properties:
         assignee:
+          type: integer
+          nullable: true
+        validator:
           type: integer
           nullable: true
         stage:
@@ -9660,6 +9827,9 @@ components:
       type: object
       properties:
         assignee:
+          type: integer
+          nullable: true
+        validator:
           type: integer
           nullable: true
         stage:
@@ -11248,6 +11418,11 @@ components:
           format: date-time
           readOnly: true
           nullable: true
+        default_validator:
+          allOf:
+          - $ref: '#/components/schemas/BasicUser'
+          readOnly: true
+          nullable: true
         validation_mode:
           type: string
           nullable: true
@@ -11303,6 +11478,17 @@ components:
             minimum: 0
           description: |
             The list of real (validation) frame ids for all honeypots in the task
+    TaskValidatorRequest:
+      type: object
+      properties:
+        validator:
+          type: integer
+          nullable: true
+        overwrite:
+          type: boolean
+          default: false
+      required:
+      - validator
     TaskWriteRequest:
       type: object
       properties:

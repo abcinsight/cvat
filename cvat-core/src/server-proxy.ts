@@ -1477,6 +1477,15 @@ async function saveJob(id: number, jobData: Partial<SerializedJob>): Promise<Ser
     return response.data;
 }
 
+async function transitionJob(id: number, action: string): Promise<SerializedJob> {
+    try {
+        const response = await Axios.post(`${config.backendAPI}/jobs/${id}/${action}`);
+        return response.data;
+    } catch (errorData) {
+        throw generateError(errorData);
+    }
+}
+
 async function createJob(jobData: Partial<SerializedJob>): Promise<SerializedJob> {
     const { backendAPI } = config;
 
@@ -2498,6 +2507,13 @@ export default Object.freeze({
     }),
 
     tasks: Object.freeze({
+        assignValidator: async (id: number, validator: number | null, overwrite: boolean): Promise<void> => {
+            try {
+                await Axios.post(`${config.backendAPI}/tasks/${id}/assign_validator`, { validator, overwrite });
+            } catch (errorData) {
+                throw generateError(errorData);
+            }
+        },
         get: getTasks,
         save: saveTask,
         create: createTask,
@@ -2517,6 +2533,7 @@ export default Object.freeze({
     }),
 
     jobs: Object.freeze({
+        transition: transitionJob,
         get: getJobs,
         getPreview: getPreview('jobs'),
         save: saveJob,

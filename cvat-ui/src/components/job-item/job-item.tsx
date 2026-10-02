@@ -206,6 +206,19 @@ function JobItem(props: Readonly<Props>): JSX.Element {
                                     />
                                 </Col>
                                 <Col className='cvat-job-item-select'>
+                                    <Row>
+                                        <Text>Validator:</Text>
+                                    </Row>
+                                    <UserSelector
+                                        className='cvat-job-validator-selector'
+                                        value={job.validator}
+                                        onSelect={(user: User | null): void => {
+                                            if (job?.validator?.id === user?.id) return;
+                                            onJobUpdate(job, { validator: user });
+                                        }}
+                                    />
+                                </Col>
+                                <Col className='cvat-job-item-select'>
                                     <Row justify='space-between' align='middle'>
                                         <Col>
                                             <Text>Stage:</Text>
@@ -226,6 +239,10 @@ function JobItem(props: Readonly<Props>): JSX.Element {
                                     </Row>
                                     <JobStateSelector
                                         value={state}
+                                        completedLabel={
+                                            job.validator && stage === JobStage.ANNOTATION ?
+                                                'submit for review' : JobState.COMPLETED
+                                        }
                                         onSelect={(newValue: JobState) => {
                                             onJobUpdate(job, { state: newValue });
                                         }}
@@ -238,6 +255,7 @@ function JobItem(props: Readonly<Props>): JSX.Element {
                 <Col span={5} offset={1}>
                     <Row className='cvat-job-item-details'>
                         <Col>
+                            <Row><Text>{`Review round: ${job.reviewRound}`}</Text></Row>
                             <Row>
                                 <Col>
                                     <Icon component={DurationIcon} />

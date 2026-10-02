@@ -46,7 +46,7 @@ from cvat.apps.engine.cloud_provider import (
 from cvat.apps.engine.frame_provider import TaskFrameProvider
 from cvat.apps.engine.log import ServerLogManager
 from cvat.apps.engine.model_utils import bulk_create
-from cvat.apps.engine.permissions import ProjectPermission, TaskPermission
+from cvat.apps.engine.permissions import JobPermission, ProjectPermission, TaskPermission
 from cvat.apps.engine.rq import RunningBackgroundProcessesError, update_org_related_data_in_rq_jobs
 from cvat.apps.engine.task_validation import HoneypotFrameSelector
 from cvat.apps.engine.types import ExtendedRequest
@@ -812,6 +812,20 @@ class JobReadListSerializer(serializers.ListSerializer):
 
 @extend_schema_serializer(deprecate_fields=["consensus_replicas"])
 class JobReadSerializer(serializers.ModelSerializer):
+    workflow_permissions = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(child=serializers.BooleanField()))
+    def get_workflow_permissions(self, instance):
+        request = self.context.get('request')
+        if not request or getattr(self.context.get('view'), 'action', None) == 'list':
+            return {}
+        result = {}
+        for scope in ('submit', 'request_changes', 'approve', 'reopen', 'update:annotations'):
+            permission = JobPermission.create_scope_view(request, instance)
+            permission.scope = scope
+            result[scope] = permission.check_access().allow
+        return result
+
     task_id = serializers.ReadOnlyField(source="get_task_id")
     task_name = serializers.SerializerMethodField()
     project_id = serializers.ReadOnlyField(source="get_project_id", allow_null=True)
@@ -821,6 +835,7 @@ class JobReadSerializer(serializers.ModelSerializer):
     stop_frame = serializers.ReadOnlyField(source="segment.stop_frame")
     frame_count = serializers.ReadOnlyField(source="segment.frame_count")
     assignee = BasicUserSerializer(allow_null=True, read_only=True)
+    validator = BasicUserSerializer(allow_null=True, read_only=True)
     dimension = serializers.CharField(max_length=2, source='segment.task.dimension', read_only=True)
     data_chunk_size = serializers.ReadOnlyField(source='segment.task.data.chunk_size')
     organization = serializers.ReadOnlyField(source='organization_id', allow_null=True)
@@ -839,13 +854,13 @@ class JobReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Job
-        fields = ('url', 'id', 'task_id', 'task_name', 'project_id', 'project_name', 'assignee', 'guide_id',
+        fields = ('url', 'id', 'task_id', 'task_name', 'project_id', 'project_name', 'assignee', 'validator', 'guide_id',
             'dimension', 'bug_tracker', 'status', 'stage', 'state', 'mode', 'frame_count',
             'start_frame', 'stop_frame',
             'data_chunk_size', 'data_compressed_chunk_type', 'data_original_chunk_type',
             'created_date', 'updated_date', 'issues', 'labels', 'type', 'organization',
             'target_storage', 'source_storage', 'assignee_updated_date', 'parent_job_id',
-            'consensus_replicas', 'replicas_count',
+            'validator_updated_date', 'review_round', 'workflow_permissions', 'consensus_replicas', 'replicas_count',
         )
         read_only_fields = fields
         list_serializer_class = JobReadListSerializer
@@ -905,6 +920,7 @@ class JobReadSerializer(serializers.ModelSerializer):
 
 class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
     assignee = serializers.IntegerField(allow_null=True, required=False)
+    validator = serializers.IntegerField(allow_null=True, required=False)
 
     # NOTE: Field sets can be expressed using serializer inheritance, but it is
     # harder to use then: we need to make a manual switch in get_serializer_class()
@@ -977,7 +993,7 @@ class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
         manual_selection_params = ('frames',)
         write_once_fields = ('type', 'task_id', 'frame_selection_method',) \
             + random_selection_params + manual_selection_params
-        fields = ('assignee', 'stage', 'state', ) + write_once_fields
+        fields = ('assignee', 'validator', 'stage', 'state', ) + write_once_fields
 
     def to_representation(self, instance):
         serializer = JobReadSerializer(instance, context=self.context)
@@ -1130,6 +1146,7 @@ class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
 
         validated_data['segment'] = segment
         validated_data["assignee_id"] = validated_data.pop("assignee", None)
+        validated_data["validator_id"] = validated_data.pop("validator", None)
 
         try:
             job = super().create(validated_data)
@@ -1149,6 +1166,24 @@ class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
         return job
 
     def update(self, instance: models.Job, validated_data: dict[str, Any]):
+        from cvat.apps.engine.job_workflow import (
+            is_submit_update,
+            record_transition,
+            transition_data,
+        )
+
+        submit_for_review = is_submit_update(instance, validated_data)
+        previous = {"stage": instance.stage, "state": instance.state}
+        if submit_for_review:
+            validated_data.update(
+                transition_data(
+                    instance,
+                    "submit",
+                    has_open_issues=False,
+                    validator_id=validated_data.get("validator", instance.validator_id),
+                )
+            )
+
         stage = validated_data.get('stage', instance.stage)
         state = validated_data.get('state', models.StateChoice.NEW if stage != instance.stage else instance.state)
 
@@ -1168,15 +1203,24 @@ class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
         ):
             instance.update_assignee(assignee_id)
 
+        if "validator" in validated_data and (
+            (validator_id := validated_data.pop("validator")) != instance.validator_id
+        ):
+            instance.validator_id = validator_id
+            instance.validator_updated_date = timezone.now()
+
         instance = super().update(instance, validated_data)
+        if submit_for_review and (request := self.context.get("request")):
+            record_transition(instance, "submit", request, previous)
         return instance
 
 class SimpleJobSerializer(serializers.ModelSerializer):
     assignee = BasicUserSerializer(allow_null=True)
+    validator = BasicUserSerializer(allow_null=True)
 
     class Meta:
         model = models.Job
-        fields = ('url', 'id', 'assignee', 'status', 'stage', 'state', 'type')
+        fields = ('url', 'id', 'assignee', 'validator', 'review_round', 'status', 'stage', 'state', 'type')
         read_only_fields = fields
 
 class JobValidationLayoutWriteSerializer(serializers.Serializer):
@@ -2497,6 +2541,7 @@ class TaskReadListSerializer(serializers.ListSerializer):
 
 @extend_schema_serializer(deprecate_fields=["organization"])
 class TaskReadSerializer(serializers.ModelSerializer):
+    default_validator = BasicUserSerializer(read_only=True, allow_null=True)
     data_chunk_size = serializers.ReadOnlyField(source='data.chunk_size', required=False)
     data_compressed_chunk_type = serializers.ReadOnlyField(source='data.compressed_chunk_type', required=False)
     data_original_chunk_type = serializers.ReadOnlyField(source='data.original_chunk_type', required=False)
@@ -2532,7 +2577,7 @@ class TaskReadSerializer(serializers.ModelSerializer):
             'subset', 'organization_id',
             'organization', # deprecated field
             'target_storage', 'source_storage', 'jobs', 'labels',
-            'assignee_updated_date', 'validation_mode', 'consensus_enabled',
+            'assignee_updated_date', 'default_validator', 'validation_mode', 'consensus_enabled',
         )
         read_only_fields = fields
         extra_kwargs = {
@@ -2567,6 +2612,11 @@ class TaskReadSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         representation['consensus_enabled'] = self.get_consensus_enabled(instance)
         return representation
+
+class TaskValidatorSerializer(serializers.Serializer):
+    validator = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True)
+    overwrite = serializers.BooleanField(default=False)
+
 
 class TaskWriteSerializer(WriteOnceMixin, serializers.ModelSerializer, OrgTransferableMixin):
     labels = LabelSerializer(many=True, source='label_set', partial=True, required=False)
@@ -3550,12 +3600,20 @@ class IssueWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
         serializer = IssueReadSerializer(instance, context=self.context)
         return serializer.data
 
+    @transaction.atomic
     def create(self, validated_data):
+        # Serialize issue creation with review decisions on the same job.
+        models.Job.objects.select_for_update().get(pk=validated_data['job'].pk)
         message = validated_data.pop('message')
         db_issue = super().create(validated_data)
         models.Comment.objects.create(issue=db_issue,
             message=message, owner=db_issue.owner)
         return db_issue
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        models.Job.objects.select_for_update().get(pk=instance.job_id)
+        return super().update(instance, validated_data)
 
     class Meta:
         model = models.Issue
