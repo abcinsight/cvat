@@ -1,0 +1,239 @@
+@import 'base';
+
+.cvat-job-board {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+    height: calc(100% - #{$grid-unit-size * 12});
+    min-height: $grid-unit-size * 45;
+    padding: 0 $grid-unit-size * 4 $grid-unit-size;
+}
+
+.cvat-job-board-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #8c8c8c;
+}
+
+.cvat-job-board-stats {
+    display: flex;
+    gap: $grid-unit-size * 2;
+    margin-bottom: $grid-unit-size * 1.5;
+    overflow-x: auto;
+    justify-content: safe center;
+}
+
+.cvat-job-board-stat {
+    display: flex;
+    flex: 1 1 $grid-unit-size * 38;
+    min-height: $grid-unit-size * 9;
+    min-width: $grid-unit-size * 32;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: $grid-unit-size * 1.5;
+    border: 1px solid $border-color-1;
+    border-radius: $border-radius-base;
+    background: $background-color-1;
+
+    span {
+        color: $text-color-secondary;
+        font-size: 12px;
+    }
+
+    strong {
+        color: $text-color;
+        font-size: 24px;
+        line-height: 1;
+    }
+}
+
+.cvat-job-board-lanes {
+    display: flex;
+    flex: 1;
+    gap: $grid-unit-size * 2;
+    min-height: 0;
+    overflow-x: auto;
+    justify-content: safe center;
+}
+
+@media (max-width: 900px) {
+    .cvat-job-board-stats {
+        justify-content: flex-start;
+    }
+
+    .cvat-job-board-lanes {
+        justify-content: flex-start;
+    }
+}
+
+.cvat-job-board-column {
+    display: flex;
+    flex: 1 1 $grid-unit-size * 38;
+    flex-direction: column;
+    min-width: $grid-unit-size * 32;
+    border: 1px solid $border-color-1;
+    border-radius: $border-radius-base;
+    background: $background-color-1;
+
+    > header {
+        display: flex;
+        justify-content: space-between;
+        padding: $grid-unit-size * 1.5;
+        border-bottom: 1px solid $border-color-1;
+        font-weight: bold;
+    }
+
+    > .ant-btn-link {
+        align-self: center;
+    }
+}
+
+.cvat-job-board-column-drop-target {
+    border-color: $border-color-hover;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 15%);
+}
+
+.cvat-job-board-column-count {
+    min-width: $grid-unit-size * 3;
+    border-radius: $border-radius-base;
+    background: $background-color-2;
+    text-align: center;
+}
+
+.cvat-job-board-column-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: $grid-unit-size;
+    min-height: $grid-unit-size * 12;
+    overflow-y: auto;
+    padding: $grid-unit-size;
+}
+
+.cvat-job-board-column-spinner {
+    align-self: center;
+    margin: $grid-unit-size;
+}
+
+.cvat-job-board-card {
+    cursor: pointer;
+
+    &:hover {
+        box-shadow: $box-shadow-base;
+    }
+}
+
+.cvat-job-board-card-pending {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.cvat-job-board-card-source {
+    opacity: 0.3;
+}
+
+.cvat-job-board-card-overlay {
+    width: $grid-unit-size * 38;
+    pointer-events: none;
+    cursor: grabbing;
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 25%));
+}
+
+.cvat-job-board-card-dragging {
+    box-shadow: $box-shadow-base;
+    cursor: grabbing;
+}
+
+.cvat-job-board-card-header,
+.cvat-job-board-card-details,
+.cvat-job-board-card-tags {
+    display: flex;
+    gap: $grid-unit-size;
+    align-items: center;
+}
+
+.cvat-job-board-card-header {
+    justify-content: space-between;
+
+    .ant-tag {
+        margin-inline-end: 0;
+    }
+}
+
+.cvat-job-board-card-drag-handle {
+    display: inline-flex;
+    width: $grid-unit-size * 3;
+    height: $grid-unit-size * 3;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    cursor: grab;
+
+    &:hover:not(:disabled) {
+        background: $background-color-2;
+    }
+
+    &:focus-visible {
+        outline: 2px solid $border-color-hover;
+        outline-offset: 1px;
+    }
+}
+
+.cvat-job-board-card-drag-disabled {
+    color: $text-color-secondary;
+    cursor: not-allowed;
+}
+
+.cvat-job-board-card-preview {
+    height: $grid-unit-size * 15;
+    margin: $grid-unit-size 0;
+}
+
+.cvat-job-board-preview-wrapper,
+.cvat-job-board-preview,
+.cvat-job-board-preview-loading,
+.cvat-job-board-preview-empty {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    object-fit: cover;
+}
+
+.cvat-job-board-card-task {
+    overflow: hidden;
+    font-weight: bold;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cvat-job-board-card-project {
+    color: $text-color-secondary;
+    font-size: 12px;
+}
+
+.cvat-job-board-card-details {
+    justify-content: space-between;
+    margin: $grid-unit-size 0;
+}
+
+.cvat-job-board-card-user {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cvat-job-board-card-tags {
+    flex-wrap: wrap;
+}

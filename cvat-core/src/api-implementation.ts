@@ -254,6 +254,23 @@ export default function implementAPI(cvat: CVATCore): CVATCore {
         return Object.assign(jobs, { count: jobsData.count });
     });
 
+    implementationMixin(cvat.jobs.getBoard, async (
+        lane: Parameters<CVATCore['jobs']['getBoard']>[0],
+        query: Parameters<CVATCore['jobs']['getBoard']>[1],
+    ) => {
+        checkFilter(query, {
+            page: isInteger,
+            pageSize: isInteger,
+            filter: isString,
+            sort: isString,
+            search: isString,
+        });
+
+        const jobsData = await serverProxy.jobs.getBoard(lane, fieldsToSnakeCase(query));
+        const jobs = jobsData.map((jobData) => new Job(omit(jobData, 'labels')));
+        return Object.assign(jobs, { count: jobsData.count }) as PaginatedResource<Job>;
+    });
+
     implementationMixin(cvat.tasks.get, async (
         filter: Parameters<CVATCore['tasks']['get']>[0],
         aggregate: Parameters<CVATCore['tasks']['get']>[1],

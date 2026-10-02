@@ -2349,6 +2349,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRead'
           description: ''
+  /api/jobs/board:
+    get:
+      operationId: jobs_board
+      summary: List jobs for the workflow board
+      description: |-
+        Returns one server-defined workflow lane. The response includes the current
+        user's workflow permissions for each returned job.
+      parameters:
+      - name: X-Organization
+        in: header
+        description: Organization unique slug
+        schema:
+          type: string
+      - name: lane
+        in: query
+        required: true
+        description: Server-defined board lane
+        schema:
+          type: string
+          enum:
+          - new
+          - in_progress
+          - awaiting_review
+          - accepted
+          - other
+      - name: filter
+        in: query
+        schema:
+          type: string
+      - name: search
+        in: query
+        schema:
+          type: string
+      - name: sort
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+      - name: org
+        in: query
+        schema:
+          type: string
+      tags:
+      - jobs
+      security:
+      - tokenAuth: []
+      - accessTokenAuth: []
+      - sessionAuth: []
+        csrfAuth: []
+        csrfHeaderAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.cvat+json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJobReadList'
+          description: ''
   /api/jobs/{id}:
     get:
       operationId: jobs_retrieve

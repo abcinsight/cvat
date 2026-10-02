@@ -558,6 +558,21 @@
     }
 }
 
+.cvat-workflow-controls {
+    display: inline-flex;
+    gap: $grid-unit-size;
+    align-items: center;
+
+    .ant-btn {
+        min-width: $grid-unit-size * 12;
+        height: $grid-unit-size * 4;
+        padding: 0 $grid-unit-size * 1.5;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
 .cvat-filters-modal {
     .ant-modal-body {
         padding: 1px;

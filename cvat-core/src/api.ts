@@ -161,6 +161,10 @@ function build(): CVATCore {
                 const result = await PluginRegistry.apiWrapper(cvat.jobs.get, filter, aggregate);
                 return result;
             },
+            async getBoard(lane, filter = {}) {
+                const result = await PluginRegistry.apiWrapper(cvat.jobs.getBoard, lane, filter);
+                return result;
+            },
         },
         frames: {
             async getMeta(type, id) {

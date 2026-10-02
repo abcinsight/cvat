@@ -8,6 +8,7 @@ import authReducer from './auth-reducer';
 import projectsReducer from './projects-reducer';
 import tasksReducer from './tasks-reducer';
 import jobsReducer from './jobs-reducer';
+import jobBoardReducer from './job-board-reducer';
 import aboutReducer from './about-reducer';
 import formatsReducer from './formats-reducer';
 import pluginsReducer from './plugins-reducer';
@@ -36,6 +37,7 @@ export default function createRootReducer(): Reducer {
         projects: projectsReducer,
         tasks: tasksReducer,
         jobs: jobsReducer,
+        jobBoard: jobBoardReducer,
         about: aboutReducer,
         formats: formatsReducer,
         plugins: pluginsReducer,

@@ -517,6 +517,7 @@ export class Job extends Session {
         validator: User | null;
         review_round: number;
         workflow_permissions: Record<string, boolean>;
+        issues_count: number;
         stage?: JobStage;
         state?: JobState;
         type?: JobType;
@@ -551,6 +552,7 @@ export class Job extends Session {
             validator: null,
             review_round: 0,
             workflow_permissions: {},
+            issues_count: 0,
             stage: undefined,
             state: undefined,
             type: undefined,
@@ -647,6 +649,7 @@ export class Job extends Session {
         this.#data.stage = data.stage ?? this.#data.stage;
         this.#data.review_round = data.review_round ?? this.#data.review_round;
         this.#data.workflow_permissions = data.workflow_permissions ?? this.#data.workflow_permissions;
+        this.#data.issues_count = data.issues?.count ?? this.#data.issues_count;
         this.#data.state = data.state ?? this.#data.state;
         this.#data.project_id = data.project_id ?? this.#data.project_id;
         this.#data.guide_id = data.guide_id ?? this.#data.guide_id;
@@ -671,6 +674,10 @@ export class Job extends Session {
 
     public get workflowPermissions(): Record<string, boolean> {
         return { ...this.#data.workflow_permissions };
+    }
+
+    public get issuesCount(): number {
+        return this.#data.issues_count;
     }
 
     public get annotationsReadOnly(): boolean {

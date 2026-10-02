@@ -817,8 +817,11 @@ class JobReadSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.DictField(child=serializers.BooleanField()))
     def get_workflow_permissions(self, instance):
         request = self.context.get('request')
-        if not request or getattr(self.context.get('view'), 'action', None) == 'list':
+        action = getattr(self.context.get('view'), 'action', None)
+        if not request or action == 'list':
             return {}
+        if action == 'board':
+            return JobPermission.get_workflow_permissions(request, instance)
         result = {}
         for scope in ('submit', 'request_changes', 'approve', 'reopen', 'update:annotations'):
             permission = JobPermission.create_scope_view(request, instance)
@@ -1145,7 +1148,7 @@ class JobWriteSerializer(WriteOnceMixin, serializers.ModelSerializer):
         )
 
         validated_data['segment'] = segment
-        validated_data["assignee_id"] = validated_data.pop("assignee", None)
+        validated_data["assignee_id"] = validated_data.pop("assignee", task.assignee_id)
         validated_data["validator_id"] = validated_data.pop("validator", None)
 
         try:
@@ -2727,6 +2730,8 @@ class TaskWriteSerializer(WriteOnceMixin, serializers.ModelSerializer, OrgTransf
                 else:
                     instance.update_assignee(field_value)
                 update_fields.append(field_name)
+                if field_name == "assignee_id":
+                    update_fields.append("assignee_updated_date")
 
     def update_labels(
         self,
@@ -2823,6 +2828,13 @@ class TaskWriteSerializer(WriteOnceMixin, serializers.ModelSerializer, OrgTransf
 
         if update_fields:
             instance.save(update_fields=list(set(update_fields) | {"updated_date"}))
+
+        if "assignee_id" in validated_data and instance.assignee_id is not None:
+            models.Job.objects.filter(segment__task=instance).update(
+                assignee_id=instance.assignee_id,
+                assignee_updated_date=instance.assignee_updated_date,
+                updated_date=instance.updated_date,
+            )
 
         if 'label_set' in validated_data and not instance.project_id:
             self.update_child_objects_on_labels_update(instance)

@@ -119,6 +119,24 @@ export interface JobsState {
     };
 }
 
+export type JobBoardLane = 'new' | 'in_progress' | 'awaiting_review' | 'accepted' | 'other';
+
+export type BoardJobsQuery = Pick<JobsQuery, 'page' | 'pageSize' | 'sort' | 'search' | 'filter'>;
+
+export interface JobBoardLaneState {
+    jobs: Job[];
+    count: number;
+    page: number;
+    fetching: boolean;
+    fetchingTimestamp: number;
+    error: unknown | null;
+}
+
+export interface JobBoardState {
+    lanes: Record<JobBoardLane, JobBoardLaneState>;
+    transitioning: Record<number, { from: JobBoardLane; to: JobBoardLane }>;
+}
+
 export interface TasksState {
     fetchingTimestamp: number;
     initialized: boolean;
@@ -1161,6 +1179,7 @@ export interface CombinedState {
     auth: AuthState;
     projects: ProjectsState;
     jobs: JobsState;
+    jobBoard: JobBoardState;
     tasks: TasksState;
     about: AboutState;
     formats: FormatsState;

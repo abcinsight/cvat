@@ -101,6 +101,8 @@ export type JobsFilter = ProjectsFilter & {
     type?: JobType;
 };
 
+export type JobBoardLane = 'new' | 'in_progress' | 'awaiting_review' | 'accepted' | 'other';
+
 export interface SerializedTask {
     default_validator?: SerializedUser | null;
     assignee: SerializedUser | null;

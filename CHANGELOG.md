@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   feedback, and role-appropriate waiting screens in the annotation UI.
 - Added Django REST, OPA policy, and full-stack REST regression coverage for validator workflow transitions
   and authorization.
+- Added a Jobs Board at `/jobs?view=board`, with workflow lanes, aggregate job counts, shared list filters,
+  permission-aware drag-and-drop transitions, and job preview cards.
 
 ### Changed
 
@@ -38,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   eligible job also submits it for review.
 - Review workspace selection now uses backend workflow capabilities instead of assuming every user viewing a
   validation-stage job is a reviewer. Annotators are redirected to the task after submission.
+- Assigning an annotator to a task now assigns that user to every existing job in the task. Jobs generated
+  later from that task inherit its annotator assignment.
 
 ### Fixed
 
@@ -45,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assigned validator from reviewing them.
 - Fixed the submitting annotator retaining the Review workspace after the page reloaded even though they were
   not assigned as the validator.
+- Fixed task-level annotator assignment leaving its jobs unassigned in the Jobs list and Board.
 - Added a data migration to repair existing eligible validator-assigned jobs left in the inconsistent
   `annotation/completed` state.
 

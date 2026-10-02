@@ -36,6 +36,16 @@ test_workflow_role_stage_matrix if {
     }
 }
 
+test_workflow_permissions_returns_all_transition_capabilities if {
+    result := jobs.workflow_permissions with input as workflow_input(2, "validation", "view")
+    result == {
+        "submit": false,
+        "request_changes": true,
+        "approve": true,
+        "reopen": false,
+    }
+}
+
 test_validator_cannot_bypass_workflow_with_stage_patch if {
     every stage in ["annotation", "validation", "acceptance"] {
         not jobs.allow with input as workflow_input(2, stage, "update:stage")
