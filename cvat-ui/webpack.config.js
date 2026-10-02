@@ -48,6 +48,16 @@ module.exports = (env) => {
     return {
         target: 'web',
         mode: 'production',
+        // Persist the expensive production compilation cache across Docker builds.
+        // Dockerfile.ui mounts this directory as a BuildKit cache, so it never
+        // becomes part of the resulting image.
+        cache: {
+            type: 'filesystem',
+            cacheDirectory: path.resolve(__dirname, 'node_modules/.cache/webpack'),
+            buildDependencies: {
+                config: [__filename],
+            },
+        },
         devtool: sourceMapsDisabled ? false : 'source-map',
         entry: {
             'cvat-ui': './src/index.tsx',

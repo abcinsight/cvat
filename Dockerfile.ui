@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:lts-slim AS cvat-ui
 
 ENV TERM=xterm \
@@ -31,7 +33,8 @@ ARG CLIENT_PLUGINS
 ARG DISABLE_SOURCE_MAPS
 ARG SOURCE_MAPS_TOKEN
 
-RUN CLIENT_PLUGINS="${CLIENT_PLUGINS}" \
+RUN --mount=type=cache,target=/tmp/cvat-ui/node_modules/.cache,sharing=locked \
+CLIENT_PLUGINS="${CLIENT_PLUGINS}" \
 DISABLE_SOURCE_MAPS="${DISABLE_SOURCE_MAPS}" \
 UI_APP_CONFIG="${UI_APP_CONFIG}" \
 SOURCE_MAPS_TOKEN="${SOURCE_MAPS_TOKEN}" yarn run build:cvat-ui

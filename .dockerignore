@@ -8,6 +8,7 @@
 /media
 /keys
 **/node_modules
+/cvat-ui/dist
 /static
 /serverless
 /site
