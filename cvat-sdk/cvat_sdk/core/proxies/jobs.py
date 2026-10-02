@@ -8,7 +8,7 @@ import io
 import mimetypes
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PIL import Image
 
@@ -165,3 +165,10 @@ class JobsRepo(
     ModelRetrieveMixin[Job],
 ):
     _entity_type = Job
+
+    def list_board(self, lane: str, **kwargs: Any) -> list[Job]:
+        """List all jobs from one server-defined workflow board lane."""
+        return [
+            self._entity_type(self._client, model)
+            for model in get_paginated_collection(self.api.board_endpoint, lane=lane, **kwargs)
+        ]

@@ -109,6 +109,13 @@ export default interface CVATCore {
             taskID?: number;
             type?: string;
         }, aggregate?: boolean) => Promise<PaginatedResource<Job>>;
+        getBoard: (lane: 'new' | 'in_progress' | 'awaiting_review' | 'accepted' | 'other', filter: {
+            page?: number;
+            pageSize?: number;
+            filter?: string;
+            sort?: string;
+            search?: string;
+        }) => Promise<PaginatedResource<Job>>;
     };
     tasks: {
         get: (filter: {

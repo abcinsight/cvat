@@ -211,14 +211,20 @@ def _create_segments_and_jobs(
         db_segment = models.Segment(task=db_task, **segment_params._asdict())
         db_segment.save()
 
-        db_job = models.Job(segment=db_segment)
+        db_job = models.Job(
+            segment=db_segment,
+            assignee_id=db_task.assignee_id,
+            assignee_updated_date=db_task.assignee_updated_date,
+        )
         db_job.save()
         db_job.make_dirs()
 
         # consensus jobs use the same `db_segment` as the regular job, thus data not duplicated in backups, exports
         for _ in range(db_task.consensus_replicas):
             consensus_db_job = models.Job(
-                segment=db_segment, parent_job_id=db_job.id, type=models.JobType.CONSENSUS_REPLICA
+                segment=db_segment, parent_job_id=db_job.id, type=models.JobType.CONSENSUS_REPLICA,
+                assignee_id=db_task.assignee_id,
+                assignee_updated_date=db_task.assignee_updated_date,
             )
             consensus_db_job.save()
             consensus_db_job.make_dirs()
@@ -987,7 +993,12 @@ def _create_validation_jobs(
 
         db_gt_segment.save()
 
-        db_gt_job = models.Job(segment=db_gt_segment, type=models.JobType.GROUND_TRUTH)
+        db_gt_job = models.Job(
+            segment=db_gt_segment,
+            type=models.JobType.GROUND_TRUTH,
+            assignee_id=db_task.assignee_id,
+            assignee_updated_date=db_task.assignee_updated_date,
+        )
         db_gt_job.save()
         db_gt_job.make_dirs()
 

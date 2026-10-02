@@ -7,6 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from cvat.apps.engine.models import Data, Issue, Job, Segment, Task
+from cvat.apps.engine.permissions import JobPermission
 from cvat.apps.iam.permissions import PermissionResult
 
 
@@ -98,9 +99,63 @@ class JobWorkflowTests(TestCase):
             response = self.client.patch(
                 f"/api/jobs/{self.job.pk}", {"state": "completed"}, format="json"
             )
-        self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.status_code, 200, response.data)
         self.job.refresh_from_db()
         self.assertEqual((self.job.stage, self.job.state), ("validation", "new"))
+
+    def test_board_lanes_are_paginated_and_include_workflow_capabilities(self):
+        review_job = Job.objects.create(
+            segment=self.segment, assignee=self.user, validator=self.validator,
+            stage="validation", state="new",
+        )
+        legacy_job = Job.objects.create(
+            segment=self.segment, assignee=self.user, state="rejected",
+        )
+
+        capabilities = {
+            "submit": True,
+            "request_changes": False,
+            "approve": False,
+            "reopen": False,
+        }
+        with patch(
+            "cvat.apps.iam.permissions.OpenPolicyAgentPermission.filter",
+            side_effect=lambda queryset: queryset,
+        ), patch.object(JobPermission, "get_workflow_permissions", return_value=capabilities):
+            response = self.client.get("/api/jobs/board", {"lane": "new", "page_size": 1})
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data["count"], 1)
+            self.assertEqual(response.data["results"][0]["id"], self.job.id)
+            self.assertEqual(response.data["results"][0]["workflow_permissions"], capabilities)
+
+            response = self.client.get("/api/jobs/board", {"lane": "awaiting_review"})
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data["count"], 1)
+            self.assertEqual(response.data["results"][0]["id"], review_job.id)
+
+            response = self.client.get("/api/jobs/board", {"lane": "other"})
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data["count"], 1)
+            self.assertEqual(response.data["results"][0]["id"], legacy_job.id)
+
+        response = self.client.get("/api/jobs/board", {"lane": "unknown"})
+        self.assertEqual(response.status_code, 400, response.data)
+
+    def test_task_assignee_is_propagated_to_all_jobs(self):
+        extra_segment = Segment.objects.create(task=self.task, start_frame=0, stop_frame=0)
+        extra_job = Job.objects.create(segment=extra_segment, assignee=self.validator)
+
+        response = self.client.patch(
+            f"/api/tasks/{self.task.pk}", {"assignee_id": self.validator.id}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.task.refresh_from_db()
+        self.job.refresh_from_db()
+        extra_job.refresh_from_db()
+        self.assertEqual(self.task.assignee_id, self.validator.id)
+        self.assertEqual(self.job.assignee_id, self.validator.id)
+        self.assertEqual(extra_job.assignee_id, self.validator.id)
 
     def test_consensus_jobs_excluded(self):
         replica = Job.objects.create(segment=self.segment, type="consensus_replica", parent_job=self.job)

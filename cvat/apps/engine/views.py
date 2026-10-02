@@ -23,6 +23,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.storage import storages
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.db.models.query import Prefetch
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
 from django.utils import timezone
@@ -1724,7 +1725,7 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        if self.action == 'list':
+        if self.action in {'list', 'board'}:
             perm = JobPermission.create_scope_list(self.request)
             queryset = perm.filter(queryset)
             # with_* optimized in JobReadListSerializer
@@ -1738,6 +1739,51 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
             return JobReadSerializer
         else:
             return JobWriteSerializer
+
+    @extend_schema(
+        summary='List jobs for the workflow board',
+        parameters=[
+            OpenApiParameter(
+                'lane',
+                description='Server-defined board lane',
+                required=True,
+                location=OpenApiParameter.QUERY,
+                type=OpenApiTypes.STR,
+                enum=['new', 'in_progress', 'awaiting_review', 'accepted', 'other'],
+            ),
+        ],
+        responses={
+            '200': JobReadSerializer(many=True),
+        },
+    )
+    @action(detail=False, methods=['GET'])
+    def board(self, request):
+        lane = request.query_params.get('lane')
+        lane_filters = {
+            'new': Q(stage='annotation', state='new'),
+            'in_progress': Q(stage='annotation', state='in progress'),
+            'awaiting_review': Q(stage='validation'),
+            'accepted': Q(stage='acceptance', state='completed'),
+        }
+        if lane == 'other':
+            workflow_lanes = Q()
+            for workflow_lane in lane_filters.values():
+                workflow_lanes |= workflow_lane
+            lane_filter = ~workflow_lanes
+        else:
+            try:
+                lane_filter = lane_filters[lane]
+            except KeyError as ex:
+                raise ValidationError('Unknown board lane') from ex
+
+        queryset = self.filter_queryset(self.get_queryset().filter(lane_filter))
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @transaction.atomic
     def _transition(self, request, transition):

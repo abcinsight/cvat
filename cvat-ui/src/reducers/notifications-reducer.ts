@@ -20,6 +20,7 @@ import { ReviewActionTypes } from 'actions/review-actions';
 import { CloudStorageActionTypes } from 'actions/cloud-storage-actions';
 import { OrganizationActionsTypes } from 'actions/organization-actions';
 import { JobsActionTypes } from 'actions/jobs-actions';
+import { JobBoardActionTypes } from 'actions/job-board-actions';
 import { WebhooksActionsTypes } from 'actions/webhooks-actions';
 import { InvitationsActionTypes } from 'actions/invitations-actions';
 import { ServerAPIActionTypes } from 'actions/server-actions';
@@ -1975,6 +1976,22 @@ export default function (state = defaultState, action: AnyAction): Notifications
                 },
             };
         }
+        case JobBoardActionTypes.GET_LANE_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    jobs: {
+                        ...state.errors.jobs,
+                        fetching: {
+                            message: 'Could not fetch a board lane',
+                            reason: action.payload.error,
+                            shouldLog: shouldLog(action.payload.error),
+                        },
+                    },
+                },
+            };
+        }
         case JobsActionTypes.CREATE_JOB_FAILED: {
             return {
                 ...state,
@@ -2001,6 +2018,22 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.jobs,
                         updating: {
                             message: 'Could not update job',
+                            reason: action.payload.error.toString(),
+                            className: 'cvat-notification-notice-update-job-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case JobBoardActionTypes.TRANSITION_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    jobs: {
+                        ...state.errors.jobs,
+                        updating: {
+                            message: `Could not transition job #${action.payload.job.id}`,
                             reason: action.payload.error.toString(),
                             className: 'cvat-notification-notice-update-job-failed',
                         },

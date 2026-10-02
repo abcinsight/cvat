@@ -19,7 +19,7 @@ import {
     SerializedQualitySettingsData, APIQualitySettingsFilter, SerializedQualityConflictData, APIQualityConflictsFilter,
     SerializedQualityReportData, APIQualityReportsFilter, APIAnalyticsEventsFilter, APIConsensusSettingsFilter,
     SerializedRequest, SerializedJobValidationLayout, SerializedTaskValidationLayout, SerializedConsensusSettingsData,
-    SerializedApiToken, APIApiTokensFilter,
+    SerializedApiToken, APIApiTokensFilter, JobBoardLane,
 } from './server-response-types';
 import { APIApiTokenModifiableFields } from './server-request-types';
 import { PaginatedResource, SerializedModel, UpdateStatusData } from './core-types';
@@ -1365,6 +1365,25 @@ async function getJobs(
     return response.data.results;
 }
 
+async function getBoardJobs(
+    lane: JobBoardLane,
+    filter: JobsFilter = {},
+): Promise<SerializedJob[] & { count: number }> {
+    const { backendAPI } = config;
+    try {
+        const response = await Axios.get(`${backendAPI}/jobs/board`, {
+            params: {
+                ...filter,
+                lane,
+            },
+        });
+        response.data.results.count = response.data.count;
+        return response.data.results;
+    } catch (errorData) {
+        throw generateError(errorData);
+    }
+}
+
 async function getIssues(filter) {
     const { backendAPI } = config;
 
@@ -2535,6 +2554,7 @@ export default Object.freeze({
     jobs: Object.freeze({
         transition: transitionJob,
         get: getJobs,
+        getBoard: getBoardJobs,
         getPreview: getPreview('jobs'),
         save: saveJob,
         create: createJob,

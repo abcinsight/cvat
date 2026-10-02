@@ -150,40 +150,58 @@ is_job_editor if {
     object.get(object.get(input.resource, "validator", {}), "id", null) == null
 }
 
-workflow_actor if {
+workflow_actor(_) if {
     is_task_staff
 }
 
-workflow_actor if {
-    input.scope == utils.SUBMIT
+workflow_actor(scope) if {
+    scope == utils.SUBMIT
     is_job_active_assignee
 }
 
-workflow_actor if {
-    input.scope in {utils.APPROVE, utils.REQUEST_CHANGES}
+workflow_actor(scope) if {
+    scope in {utils.APPROVE, utils.REQUEST_CHANGES}
     is_job_active_validator
 }
 
-allow if {
-    input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+workflow_allowed(scope) if {
+    scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
     utils.is_sandbox
     utils.has_perm(utils.WORKER)
-    workflow_actor
+    workflow_actor(scope)
 }
 
-allow if {
-    input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+workflow_allowed(scope) if {
+    scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
     input.auth.organization.id == input.resource.organization.id
     organizations.has_perm(organizations.WORKER)
     utils.has_perm(utils.WORKER)
-    workflow_actor
+    workflow_actor(scope)
+}
+
+workflow_allowed(scope) if {
+    scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
+    input.auth.organization.id == input.resource.organization.id
+    organizations.has_perm(organizations.MAINTAINER)
+    utils.has_perm(utils.USER)
+}
+
+workflow_allowed(_) if {
+    utils.is_admin
+}
+
+default workflow_allowed(_) := false
+
+workflow_permissions := {
+    "submit": workflow_allowed(utils.SUBMIT),
+    "request_changes": workflow_allowed(utils.REQUEST_CHANGES),
+    "approve": workflow_allowed(utils.APPROVE),
+    "reopen": workflow_allowed(utils.REOPEN),
 }
 
 allow if {
     input.scope in {utils.SUBMIT, utils.REQUEST_CHANGES, utils.APPROVE, utils.REOPEN}
-    input.auth.organization.id == input.resource.organization.id
-    organizations.has_perm(organizations.MAINTAINER)
-    utils.has_perm(utils.USER)
+    workflow_allowed(input.scope)
 }
 
 default allow := false

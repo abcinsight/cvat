@@ -24,6 +24,7 @@ from cvat.apps.iam.permissions import (
     get_membership,
 )
 from cvat.apps.organizations.models import Organization
+from cvat.utils.http import make_requests_session
 
 from .location import StorageType, get_location_configuration
 from .job_workflow import is_submit_update
@@ -995,6 +996,17 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
 
         return cls(**iam_context, obj=job, scope=cls.Scopes.VIEW)
 
+    @classmethod
+    def get_workflow_permissions(cls, request: ExtendedRequest, job: Job) -> dict[str, bool]:
+        """Return all board transition capabilities with one OPA evaluation."""
+        permission = cls.create_scope_view(request, job)
+        url = permission.url.replace("/allow", "/workflow_permissions")
+        with make_requests_session() as session:
+            result = session.post(url, json=permission.payload).json()["result"]
+
+        actions = (cls.Scopes.SUBMIT, cls.Scopes.REQUEST_CHANGES, cls.Scopes.APPROVE, cls.Scopes.REOPEN)
+        return {str(action): bool(result.get(str(action), False)) for action in actions}
+
     def __init__(self, **kwargs):
         self.task_id = kwargs.pop("task_id", None)
         super().__init__(**kwargs)
@@ -1005,6 +1017,7 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
         Scopes = cls.Scopes
         scope = {
             ("list", "GET"): Scopes.LIST,
+            ("board", "GET"): Scopes.LIST,
             ("create", "POST"): Scopes.CREATE,
             ("retrieve", "GET"): Scopes.VIEW,
             ("partial_update", "PATCH"): Scopes.UPDATE,

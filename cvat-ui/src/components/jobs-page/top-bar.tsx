@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { Col, Row } from 'antd/lib/grid';
 import Input from 'antd/lib/input';
+import Radio from 'antd/lib/radio';
 
 import { JobsQuery } from 'reducers';
 import dimensions from 'utils/dimensions';
@@ -30,11 +31,13 @@ interface Props {
     onApplySearch(search: string | null): void;
     selectedCount: number;
     onSelectAll: () => void;
+    view: 'list' | 'board';
+    onViewChange(view: 'list' | 'board'): void;
 }
 
 function TopBarComponent(props: Readonly<Props>): JSX.Element {
     const {
-        query, onApplyFilter, onApplySorting, onApplySearch, selectedCount, onSelectAll,
+        query, onApplyFilter, onApplySorting, onApplySearch, selectedCount, onSelectAll, view, onViewChange,
     } = props;
     const [visibility, setVisibility] = useState(defaultVisibility);
 
@@ -52,7 +55,16 @@ function TopBarComponent(props: Readonly<Props>): JSX.Element {
                             className='cvat-jobs-page-search-bar'
                             placeholder='Search ...'
                         />
-                        <ResourceSelectionInfo selectedCount={selectedCount} onSelectAll={onSelectAll} />
+                        {view === 'list' ? <ResourceSelectionInfo selectedCount={selectedCount} onSelectAll={onSelectAll} /> : null}
+                        <Radio.Group
+                            value={view}
+                            onChange={(event): void => onViewChange(event.target.value)}
+                            optionType='button'
+                            buttonStyle='solid'
+                        >
+                            <Radio.Button value='list'>List</Radio.Button>
+                            <Radio.Button value='board'>Board</Radio.Button>
+                        </Radio.Group>
                     </div>
                     <div>
                         <SortingComponent

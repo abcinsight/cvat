@@ -39,7 +39,7 @@ export default function WorkflowControls(): JSX.Element | null {
         }
     };
     return (
-        <>
+        <div className='cvat-workflow-controls'>
             {job.stage === JobStage.ANNOTATION && job.workflowPermissions.submit && (
                 <Button loading={busy} onClick={() => transition('submit')}>Submit for review</Button>
             )}
@@ -56,6 +56,6 @@ export default function WorkflowControls(): JSX.Element | null {
             {job.stage === JobStage.ACCEPTANCE && job.workflowPermissions.reopen && (
                 <Button loading={busy} onClick={() => transition('reopen')}>Reopen</Button>
             )}
-        </>
+        </div>
     );
 }

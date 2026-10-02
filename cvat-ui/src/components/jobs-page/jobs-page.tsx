@@ -23,11 +23,13 @@ import { selectionActions } from 'actions/selection-actions';
 import TopBarComponent from './top-bar';
 import JobsContentComponent from './jobs-content';
 import EmptyListComponent from './empty-list';
+import BoardPageComponent from './board/board-page';
 
 function JobsPageComponent(): JSX.Element {
     const dispatch = useDispatch();
     const history = useHistory();
     const [isMounted, setIsMounted] = useState(false);
+    const view: 'list' | 'board' = new URLSearchParams(history.location.search).get('view') === 'board' ? 'board' : 'list';
     const {
         query,
         fetching,
@@ -54,19 +56,25 @@ function JobsPageComponent(): JSX.Element {
     const updatedQuery = useResourceQuery<JobsQuery>(query, { pageSize: 12 });
 
     useEffect(() => {
-        dispatch(getJobsAsync({ ...updatedQuery }));
-        setIsMounted(true);
-    }, []);
-
-    useEffect(() => {
-        if (isMounted && !_.isEqual(query, updatedQuery)) {
+        if (view === 'list') {
             dispatch(getJobsAsync({ ...updatedQuery }));
         }
-    }, [updatedQuery, query, isMounted]);
+        setIsMounted(true);
+    }, [view]);
+
+    useEffect(() => {
+        if (view === 'list' && isMounted && !_.isEqual(query, updatedQuery)) {
+            dispatch(getJobsAsync({ ...updatedQuery }));
+        }
+    }, [updatedQuery, query, isMounted, view]);
 
     const setQuery = useCallback((nextQuery: JobsQuery) => {
         if (isMounted) {
-            const nextSearch = updateHistoryFromQuery(nextQuery);
+            const nextParams = new URLSearchParams(updateHistoryFromQuery(nextQuery));
+            if (view === 'board') {
+                nextParams.set('view', 'board');
+            }
+            const nextSearch = nextParams.toString() ? `?${nextParams.toString()}` : '';
 
             if (nextSearch === (history.location.search || '')) return;
 
@@ -80,9 +88,19 @@ function JobsPageComponent(): JSX.Element {
                 history.push({ ...history.location, search: nextSearch });
             }
         }
-    }, [history.location, updatedQuery, isMounted]);
+    }, [history.location, updatedQuery, isMounted, view]);
 
-    const onApplyFilter = (filter: string | null) => {
+    const onViewChange = useCallback((nextView: 'list' | 'board'): void => {
+        const params = new URLSearchParams(history.location.search);
+        if (nextView === 'board') {
+            params.set('view', 'board');
+        } else {
+            params.delete('view');
+        }
+        history.push({ ...history.location, search: params.toString() ? `?${params.toString()}` : '' });
+    }, [history]);
+
+    const onApplyFilter = (filter: string | null): void => {
         setQuery({
             ...query,
             filter,
@@ -92,7 +110,7 @@ function JobsPageComponent(): JSX.Element {
 
     const isAnySearch = anySearch<JobsQuery>(query);
 
-    const content = count ? (
+    const listContent = count ? (
         <>
             <JobsContentComponent onApplyFilter={onApplyFilter} />
             <Row justify='space-around' about='middle' className='cvat-resource-pagination-wrapper'>
@@ -141,8 +159,11 @@ function JobsPageComponent(): JSX.Element {
                         page: 1,
                     });
                 }}
+                view={view}
+                onViewChange={onViewChange}
             />
-            {fetching && !bulkFetching ? <Spin size='large' className='cvat-spinner' /> : content}
+            {view === 'list' && fetching && !bulkFetching ? <Spin size='large' className='cvat-spinner' /> : null}
+            {view === 'list' ? listContent : <BoardPageComponent query={updatedQuery} />}
         </div>
     );
 }
