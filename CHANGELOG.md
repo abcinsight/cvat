@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- \[Compose, UI\] Reduced local `cvat_ui` rebuild time by omitting generated UI output from the Docker
+  context, disabling source maps by default, and retaining the webpack compilation cache with BuildKit.
 - Completing an eligible validator-assigned annotation job now submits it for review atomically as
   `validation/new`, including completion through legacy clients and task/job status selectors.
 - New eligible jobs inherit their task's default validator. Assigning a validator to an already-completed

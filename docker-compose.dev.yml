@@ -98,6 +98,10 @@ services:
         https_proxy:
         no_proxy:
         socks_proxy:
+        # Source maps substantially increase production webpack build time and are
+        # not used by the local Compose deployment. Set DISABLE_SOURCE_MAPS=false
+        # when a debugging build needs them.
+        DISABLE_SOURCE_MAPS: '${DISABLE_SOURCE_MAPS:-true}'
       dockerfile: Dockerfile.ui
 
   cvat_clickhouse:
